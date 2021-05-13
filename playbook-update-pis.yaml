@@ -1,0 +1,9 @@
+---
+
+- hosts: all
+  user: george
+  port: 22
+  gather_facts: True
+  roles:
+    - { role: update-pis, tags: [ "apt_update","apt_dist_upgrade","standard_installs","reboot_machine" ] }
+

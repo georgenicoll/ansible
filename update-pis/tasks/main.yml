@@ -1,0 +1,48 @@
+---
+# tasks file for update-pis
+- name: Run apt update
+  become: yes
+  apt:
+    update_cache: yes
+  register: ran_apt_update
+  tags: apt_update
+
+- name: Run apt dist-upgrade
+  become: yes
+  async: 108000 # 30 mins (in seconds)
+  poll: 20
+  apt:
+    upgrade: dist
+  register: ran_dist_upgrade
+  tags: apt_dist_upgrade
+
+- name: Run apt install nfs-common
+  become: yes
+  apt:
+    name: nfs-common
+    state: present
+  tags: standard_installs
+
+- name: Rebooting machine after delay
+  become: yes
+  reboot:
+    msg: "Rebooting after ansible updates"
+    pre_reboot_delay: 120
+  register: reboot
+  tags: reboot_machine
+
+#- name: Run an arbitrary shell command
+#  become: yes
+#  shell: apt-key adv --keyserver keyserver.ubuntu.com --recv-keys FEEA9169307EA071
+#  args:
+#    executable: /bin/bash
+#  tags: arb-command
+
+- debug:
+    msg: "Ran apt update."
+  when: ran_apt_update.changed == true
+
+- debug:
+    msg: "Ran apt dist-upgrade."
+  when: ran_dist_upgrade.changed == true
+
