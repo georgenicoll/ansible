@@ -1,0 +1,39 @@
+---
+- name: Reset Kubernetes
+  hosts: all
+  become: yes
+  
+  tasks:
+  - name: Run kubeadm reset
+    shell: kubeadm reset --force
+    ignore_errors: True
+
+  - name: Remove cni plugins
+    shell: 
+      cmd: rm -fr /etc/cni/net.d
+      warn: false
+    ignore_errors: True
+
+  - name: Clean iptables flush general
+    ansible.builtin.iptables:
+      flush: yes
+    ignore_errors: True
+  - name: Clean iptables flush tables
+    ansible.builtin.iptables:
+      table: "{{ item }}"
+      flush: yes
+    with_items: [ 'nat', 'mangle' ]
+    ignore_errors: True
+  - name: Clean iptables delete chains
+    shell: iptables -X
+    ignore_errors: True
+    
+  - name: ipvsadm clear
+    shell: ipvsadm -C
+    ignore_errors: True
+
+#  - name: Rebooting machine after delay
+#    reboot:
+#      msg: "Rebooting after updates"
+#      pre_reboot_delay: 5
+

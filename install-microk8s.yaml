@@ -1,0 +1,29 @@
+---
+# See https://microk8s.io/docs
+- name: Install microk8s
+  hosts: all
+  become: yes
+  gather_facts: False
+  
+  tasks:
+  
+  - name: Install microk8s
+    snap:
+      name: microk8s
+      classic: yes
+      channel: latest/stable
+  
+  - name: Setup users in groups
+    shell:
+      cmd: usermod -a -G microk8s {{ item }}
+    with_items: [ 'george' ]
+    
+  - name: Setup user ownership of .kube directory
+    shell:
+      cmd: chown -f -R {{ item }} /home/{{ item }}/.kube
+    with_items: [ 'george' ]
+    
+  - name: Wait ready...
+    shell:
+      cmd: microk8s status --wait-ready
+

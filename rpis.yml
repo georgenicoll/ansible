@@ -1,0 +1,14 @@
+all:
+  children:
+    red_only:
+      hosts:
+        red:
+    black_only:
+      hosts:
+        black:
+    others:
+      hosts:
+        gold:
+        pink:
+        purple:
+

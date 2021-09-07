@@ -1,0 +1,3 @@
+#Put back ControlMaster, etc by default - these can be removed in more specific config
+ansible_ssh_common_args: -o ControlMaster=auto -o ControlPersist=60s
+

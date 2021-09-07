@@ -1,0 +1,14 @@
+---
+# See https://microk8s.io/docs
+- name: Remove microk8s
+  hosts: all
+  become: yes
+  gather_facts: False
+  
+  tasks:
+  
+  - name: Remove microk8s
+    snap:
+      name: microk8s
+      state: absent
+ 
