@@ -1,13 +1,12 @@
 all:
   children:
-    red_only:
+    master_node:
       hosts:
         red:
-    black_only:
+    everything:
       hosts:
+        red:
         black:
-    others:
-      hosts:
         gold:
         pink:
         purple:

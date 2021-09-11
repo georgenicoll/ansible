@@ -11,4 +11,8 @@
     snap:
       name: microk8s
       state: absent
+      
+  - name: Removing microk8s snap snapshots
+    shell: snap saved | grep microk8s | awk '{ print $1 }' | xargs -I % snap forget %
+    ignore_errors: True
  

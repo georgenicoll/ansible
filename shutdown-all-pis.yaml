@@ -1,0 +1,9 @@
+---
+- hosts: all
+  gather_facts: False
+  become: yes
+  
+  tasks:
+  - name: Shutdown now
+    community.general.shutdown:
+

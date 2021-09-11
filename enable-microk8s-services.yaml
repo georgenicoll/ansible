@@ -1,0 +1,14 @@
+---
+# See https://microk8s.io/docs
+- name: Enanle microk8s services
+  hosts: master_node
+  become: yes
+  gather_facts: False
+  
+  tasks:
+  
+  - name: Enable multus
+    when: inventory_hostname in groups[ 'master_node' ]
+    shell:
+      cmd: microk8s enable multus    
+    

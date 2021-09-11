@@ -2,6 +2,7 @@
 - name: Reset Kubernetes
   hosts: all
   become: yes
+  gather_facts: False
   
   tasks:
   - name: Run kubeadm reset
@@ -18,12 +19,14 @@
     ansible.builtin.iptables:
       flush: yes
     ignore_errors: True
+    
   - name: Clean iptables flush tables
     ansible.builtin.iptables:
       table: "{{ item }}"
       flush: yes
     with_items: [ 'nat', 'mangle' ]
     ignore_errors: True
+    
   - name: Clean iptables delete chains
     shell: iptables -X
     ignore_errors: True
