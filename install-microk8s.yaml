@@ -11,8 +11,8 @@
     snap:
       name: microk8s
       classic: yes
-#      channel: latest/stable
-      channel: latest/edge
+      channel: latest/stable
+#      channel: latest/edge
   
   - name: Setup users in groups
     shell:
