@@ -1,0 +1,13 @@
+---
+- hosts: all
+  gather_facts: False
+  become: yes
+  
+  tasks:
+  - name: Start microk8s
+    shell:
+      cmd: microk8s start
+
+  - name: Wait for ready
+    shell:
+      cmd: microk8s status --wait-ready
