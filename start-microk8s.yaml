@@ -4,10 +4,22 @@
   become: yes
   
   tasks:
-  - name: Start microk8s
+  - name: Start microk8s on master
+    when: inventory_hostname in groups[ 'master_node' ]
     shell:
       cmd: microk8s start
 
-  - name: Wait for ready
+  - name: Wait for master to be ready
+    when: inventory_hostname in groups[ 'master_node' ]
+    shell:
+      cmd: microk8s status --wait-ready
+
+  - name: Start microk8s on non-master
+    when: inventory_hostname not in groups[ 'master_node' ]
+    shell:
+      cmd: microk8s start
+
+  - name: Wait for master to be ready
+    when: inventory_hostname not in groups[ 'master_node' ]
     shell:
       cmd: microk8s status --wait-ready
