@@ -1,0 +1,32 @@
+---
+#See https://metallb.org/
+- name: Install MetalLB into the cluster
+  hosts: master_node
+  become: no
+  gather_facts: False
+  vars:
+    metallb_namespace: metallb
+
+  tasks:
+    - name: add metallb repo
+      kubernetes.core.helm_repository:
+        binary_path: microk8s helm3
+        name: metallb
+        url: https://metallb.github.io/metallb
+        state: present
+
+    - name: helm install metallb
+      kubernetes.core.helm:
+        binary_path: microk8s helm3
+        name: metallb
+        update_repo_cache: yes
+        chart_ref: metallb/metallb
+        release_namespace: "{{ metallb_namespace }}"
+        create_namespace: yes
+        values:
+          configInline:
+            address-pools:
+            - name: default
+              protocol: layer2
+              addresses:
+              - 10.0.0.200-10.0.0.225
