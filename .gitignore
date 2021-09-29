@@ -1,3 +1,9 @@
 # IntelliJ
 .idea/
 *.iml
+
+# Values files
+*.values.yml
+
+# Scratch files
+scratch*/

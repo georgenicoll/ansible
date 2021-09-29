@@ -1,0 +1,42 @@
+# Run this with kubectl apply -f <this>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-dashboard
+  #namespace: traefik ##
+  namespace: default
+spec:
+  ports:
+    - name: web
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+  selector:
+    app: traefik
+---
+kind: HTTPRoute
+apiVersion: networking.x-k8s.io/v1alpha1
+metadata: 
+  name: traefik-dashboard
+  #namespace: traefik ##
+  namespace: default
+  labels: 
+    app: traefik
+spec: 
+  gateways:
+    #allow: SameNamespace #<-- Default
+    allow: All
+    #allow: FromList
+    #gatewayRefs: 
+    #- name: traefik-gateway
+    #  namespace: traefik
+  rules: 
+  - forwardTo: 
+    - port: 9000
+      serviceName: traefik-dashboard
+      weight: 1
+    matches: 
+    - path: 
+        type: Exact
+        value: /traefik-dashboard

@@ -1,0 +1,90 @@
+---
+# See https://traefik.io/blog/getting-started-with-traefik-and-the-new-kubernetes-gateway-api/
+# The gateway is patched to allow routes from any namespace.  This will not be necessary when the helm chart allows
+# the routes namespaces in the gateway to be overridden from Same to Any.  Unfortunately I couldn't get this to work...
+# CRDs for the Kubernetes Gateway API can be found here:  https://gateway-api.sigs.k8s.io/v1alpha1/references/spec/
+# NOTE: Waiting for some of the later cross namespace stuff to make it possible to deploy traefik to its own namespace, 
+#  this looks to be coming in https://gateway-api.sigs.k8s.io/v1alpha2/references/cross-namespace-references/
+#  (and parentRefs being added to HTTPRoute, see https://gateway-api.sigs.k8s.io/v1alpha2/api-types/httproute/#attaching-to-gateways)
+- name: Install traefik into cluster (using new k8 gateway api)
+  hosts: master_node
+  become: no
+  gather_facts: False
+  vars:
+    traefik_namespace: default
+    traefik_secret_name: traefik-secret-name
+    traefik_secret_remote_file: /tmp/traefik-tls-secret.yaml
+    #traefik_gateway_patch: |- 
+    #spec:
+    #  listeners:
+    #  - protocol: http
+    #    routes:
+    #      namespaces:
+    #        from: All
+  
+  tasks:
+
+    - name: apply gateway-api CRDs
+      shell:
+        cmd: microk8s kubectl apply -k "github.com/kubernetes-sigs/gateway-api/config/crd?ref=v0.1.0"
+
+    - name: copy traefik secret to the remote machine
+      copy:
+        src: traefik-tls-secret.yaml
+        dest: "{{ traefik_secret_remote_file }}"
+
+    - name: replace the name with {{ traefik_secret_name }}
+      replace:
+        path: "{{ traefik_secret_remote_file }}"
+        regexp: '^(.*name: ).*$'
+        replace: '\1{{ traefik_secret_name }}'
+
+    - name: replace the namespace with {{ traefik_namespace }}
+      replace:
+        path: "{{ traefik_secret_remote_file }}"
+        regexp: '^(.*namespace: ).*$'
+        replace: '\1{{ traefik_namespace }}'
+
+    - name: setup certificate (cert is taken from the traefik getting started blog entry - NOT FOR A PRODUCTION SYSTEM)
+      shell:
+        cmd: microk8s kubectl apply -f {{ traefik_secret_remote_file }}
+
+    - name: add traefik helm repo
+      kubernetes.core.helm_repository:
+        binary_path: microk8s helm3
+        name: traefik
+        url: https://helm.traefik.io/traefik
+        state: present
+        
+    - name: Deploy traefik helm chart
+      kubernetes.core.helm:
+        binary_path: microk8s helm3
+        name: traefik
+        update_repo_cache: yes
+        chart_ref: traefik/traefik
+        release_namespace: "{{ traefik_namespace }}"
+        create_namespace: yes
+        values:
+          service:
+            type: NodePort
+          ports:
+            web:
+              nodePort: 30080
+            websecure:
+              nodePort: 30443
+          experimental:
+            kubernetesGateway:
+              enabled: true
+              appLabelSelector: traefik
+              certificates:
+              - group: "core"
+                kind: "Secret"
+                name: "{{ traefik_secret_name }}"
+          deployment:
+            podLabels:
+              app: traefik
+
+    # Not needed as everything will go into the same namespace
+    #- name: Patch traefik gateway to allow routes in any namespace
+    #  shell:
+    #    cmd: microk8s kubectl patch gateway -n {{ traefik_namespace }} traefik-gateway -p $'{{ traefik_gateway_patch }}'

@@ -27,9 +27,15 @@
     shell:
       cmd: microk8s enable metrics-server
 
-  - name: Enable prometheus
-    when: inventory_hostname in groups[ 'master_node' ]
-    shell:
-      cmd: microk8s enable prometheus
+  #- name: Enable prometheus
+  #  when: inventory_hostname in groups[ 'master_node' ]
+  #  shell:
+  #    cmd: microk8s enable prometheus
+
+  # traefik with gateway stuff is in 03.
+  #- name: Enable traefik
+  #  when: inventory_hostname in groups[ 'master_node' ]
+  #  shell:
+  #    cms: microk8s enable traefik
 
 
