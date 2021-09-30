@@ -29,4 +29,10 @@
             - name: default
               protocol: layer2
               addresses:
-              - 10.0.0.200-10.0.0.225
+              - 10.0.0.200-10.0.0.229
+            - name: fixed-services
+              protocol: layer2
+              addresses:
+              - 10.0.0.230-10.0.0.240
+              auto-assign: false
+

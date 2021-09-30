@@ -17,10 +17,10 @@
     shell:
       cmd: microk8s enable helm3    
 
-  #- name: Enable dashboard
-  #  when: inventory_hostname in groups[ 'master_node' ]
-  #  shell:
-  #    cmd: microk8s enable dashboard    
+  - name: Enable dashboard
+    when: inventory_hostname in groups[ 'master_node' ]
+    shell:
+      cmd: microk8s enable dashboard    
 
   - name: Enable metrics-server
     when: inventory_hostname in groups[ 'master_node' ]
