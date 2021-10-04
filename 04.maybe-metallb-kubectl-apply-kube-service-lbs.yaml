@@ -12,6 +12,7 @@ spec:
   selector:
     k8s-app: metrics-server
   type: LoadBalancer
+  externalName: metrics-server
 ---
 apiVersion: v1
 kind: Service
@@ -19,7 +20,7 @@ metadata:
   name: kubernetes-dashboard-lb
   namespace: kube-system
 spec:
-  loadBalancerIP: 10.0.0.230
+  loadBalancerIP: 10.0.0.231
   ports:
     - protocol: TCP
       port: 443
@@ -27,3 +28,81 @@ spec:
   selector:
     k8s-app: kubernetes-dashboard
   type: LoadBalancer
+  externalName: dashboard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-corefile
+  namespace: kube-system
+data: 
+  corefile: |
+    mnet.kube:53 {
+      k8s_ext_dhcp {
+          ttlSeconds          30
+          continueOnNoMatch   false
+      }
+      kubernetes
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-dns-external
+  namespace: kube-system
+  labels:
+    app: core-dns-external
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: core-dns-external
+  template:
+    metadata:
+      labels:
+        app: core-dns-external
+    spec:
+      containers:
+      - name: coredns
+        image: georgenicoll/coredns
+        volumeMounts:
+          - mountPath: "/config/"
+            name: corefile
+            readOnly: true
+        ports:
+          - containerPort: 53
+            protocol: UDP
+        command:
+          - "/coredns"
+        args:
+          - "-conf=/config/Corefile"
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "20Mi"
+          limits:
+            cpu: "100m"
+            memory: "50Mi"
+      volumes:
+        - name: corefile
+          configMap:
+            name: coredns-corefile
+            items:
+            - key: corefile
+              path: Corefile
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-dns-external
+  namespace: kube-system
+spec:
+  loadBalancerIP: 10.0.0.230
+  ports:
+  - protocol: UDP
+    port: 53
+    targetPort: 53
+  selector:
+    app: core-dns-external
+  type: LoadBalancer
+  externalName: core-dns-external
