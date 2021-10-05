@@ -2,8 +2,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: metrics-server-lb
+  name: kube-metrics-server
   namespace: kube-system
+  labels:
+    service-type: external
 spec:
   ports:
     - protocol: TCP
@@ -12,13 +14,14 @@ spec:
   selector:
     k8s-app: metrics-server
   type: LoadBalancer
-  externalName: metrics-server
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: kubernetes-dashboard-lb
+  name: kube-dashboard
   namespace: kube-system
+  labels:
+    service-type: external
 spec:
   loadBalancerIP: 10.0.0.231
   ports:
@@ -28,7 +31,6 @@ spec:
   selector:
     k8s-app: kubernetes-dashboard
   type: LoadBalancer
-  externalName: dashboard
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -37,7 +39,8 @@ metadata:
   namespace: kube-system
 data: 
   corefile: |
-    mnet.kube:53 {
+    kubernetes:53 {
+      health
       k8s_ext_dhcp {
           ttlSeconds          30
           continueOnNoMatch   false
@@ -48,19 +51,19 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: core-dns-external
+  name: coredns-external
   namespace: kube-system
   labels:
-    app: core-dns-external
+    app: coredns-external
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: core-dns-external
+      app: coredns-external
   template:
     metadata:
       labels:
-        app: core-dns-external
+        app: coredns-external
     spec:
       containers:
       - name: coredns
@@ -83,6 +86,19 @@ spec:
           limits:
             cpu: "100m"
             memory: "50Mi"
+        readinessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 1
+          httpGet:
+            path: "/health"
+            port: 8080
+        livenessProbe:
+          initialDelaySeconds: 3
+          periodSeconds: 3
+          httpGet:
+            path: "/health"
+            port: 8080
       volumes:
         - name: corefile
           configMap:
@@ -94,8 +110,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: core-dns-external
+  name: kube-coredns
   namespace: kube-system
+  labels:
+    service-type: external
 spec:
   loadBalancerIP: 10.0.0.230
   ports:
@@ -103,6 +121,5 @@ spec:
     port: 53
     targetPort: 53
   selector:
-    app: core-dns-external
+    app: coredns-external
   type: LoadBalancer
-  externalName: core-dns-external
