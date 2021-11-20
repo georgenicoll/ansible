@@ -1,0 +1,12 @@
+# These playbooks will remove k3s (if it's installed) and then reinstall it using cilium as the CNI
+#   the install will do the following:
+#     - install the master node without flannel, traefik and servicelb
+#     - add cilium as the CNI
+#     - connect up the other nodes as control plane nodes
+#     - add dashboard
+#     - add metallb and expose dashboard and metrics server to the local network using it
+---
+- import_playbook: k3s.remove-k3s.yaml
+- import_playbook: k3s.01.install-k3s.yaml
+- import_playbook: k3s.02.dashboard-install.yaml
+- import_playbook: k3s.03.metallb-install.yaml

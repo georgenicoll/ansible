@@ -1,0 +1,104 @@
+---
+# See https://microk8s.io/docs
+- name: Install microk8s
+  hosts: all
+  become: yes
+  gather_facts: True
+  vars:
+    use_modified_snap: False
+    modified_snap: microk8s_v1.22.3_arm64.snap
+    use_cilium: False
+  
+  tasks:
+
+  - name: Set snap retain
+    shell:
+      cmd: snap set system refresh.retain=2
+
+  - name: Install microk8s
+    when: not use_modified_snap
+    snap:
+      name: microk8s
+      classic: yes
+      channel: latest/stable
+#      channel: latest/edge
+
+  - name: Install modified build of microk8s
+    when: use_modified_snap
+    block:
+
+      - name: Copy modified snap across
+        copy:
+          src: builds/{{ modified_snap }}
+          dest: /tmp/{{ modified_snap }}
+
+      - name: Install modified snap
+        shell:
+          cmd: snap install /tmp/{{ modified_snap }} --classic --dangerous
+      
+  - name: Setup users in groups
+    shell:
+      cmd: usermod -a -G microk8s {{ item }}
+    with_items: 
+      - george
+    
+  - name: Setup user ownership of .kube directory
+    file:
+      path: "/home/{{ item }}/.kube"
+      owner: "{{ item }}"
+      recurse: yes
+    #shell:
+    #  cmd: chown -f -R {{ item }} /home/{{ item }}/.kube
+    with_items: 
+      - george
+    
+  - name: Wait ready...
+    shell:
+      cmd: microk8s status --wait-ready
+
+  - name: Enable Cilium
+    when: use_cilium
+    shell:
+      cmd: microk8s enable cilium - --set ipam.operator.clusterPoolIPv4PodCIDR="10.9.8.0/16" --set ipam.operator.clusterPoolIPv4MaskSize=24
+      
+  - name: add nodes to master
+    tags:
+      - add-nodes
+    when: inventory_hostname not in groups[ 'master_node' ]
+    block:
+      - name: run add-node on master
+        delegate_to: "{{ groups[ 'master_node' ][0] }}"
+        shell:
+          cmd: microk8s add-node
+        register: command_output
+
+      - name: Output all add-node output
+        when: inventory_hostname not in groups[ 'master_node' ]
+        debug:
+          var: command_output.stdout_lines
+
+      - name: cluster join line
+        when: inventory_hostname not in groups[ 'master_node' ]
+        debug:
+          var: (command_output.stdout_lines | select('match', '^microk8s join.*') | list)[0]
+          
+      - name: join cluster
+        when: inventory_hostname not in groups[ 'master_node' ]
+        shell:
+          cmd: "{{ (command_output.stdout_lines | select('match', '^microk8s join.*') | list)[0] }}"
+
+  - name: copy across kubeconfig
+    tags:
+      - copy-kubeconfig
+    when: inventory_hostname in groups[ 'master_node' ]
+    block:
+    - name: generate microk8s kubeconfig on master node
+      shell:
+        cmd: microk8s config
+      register: kubectl_output
+
+    - name: write kubeconfig to microk8s kubeconfig file
+      delegate_to: "localhost"
+      become: false
+      shell:
+        cmd: echo "{{ kubectl_output.stdout }}" > ~/Dropbox/Kubernetes/kubeconfig-home-pis-microk8s

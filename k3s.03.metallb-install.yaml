@@ -1,0 +1,91 @@
+---
+#See https://metallb.org/
+- name: Install MetalLB into the cluster
+  hosts: all
+  become: no
+  gather_facts: False
+  vars:
+    k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml
+    metallb_resources: k3s.03.metallb-resources.yaml
+    metallb_namespace: metallb
+    metrics_server_namespace: kube-system
+    dashboard_namespace: kube-utils
+    coredns_external_namespace: kube-utils
+
+  tasks:
+
+    - name: Get the helm snap
+      community.general.snap:
+        name: helm
+        state: present
+        classic: yes
+
+    - name: add metallb repo
+      when: inventory_hostname in groups[ 'master_node' ]
+      kubernetes.core.helm_repository:
+        name: metallb
+        url: https://metallb.github.io/metallb
+        state: present
+
+    - name: helm install metallb
+      when: inventory_hostname in groups[ 'master_node' ]
+      kubernetes.core.helm:
+        name: metallb
+        update_repo_cache: yes
+        chart_ref: metallb/metallb
+        release_namespace: "{{ metallb_namespace }}"
+        kubeconfig: "{{ k3s_kubeconfig_location }}"
+        create_namespace: yes
+        values:
+          configInline:
+            address-pools:
+            - name: default
+              protocol: layer2
+              addresses:
+              - 10.0.0.200-10.0.0.229
+            - name: fixed-services
+              protocol: layer2
+              addresses:
+              - 10.0.0.230-10.0.0.240
+              auto-assign: false
+      register: task_result
+      retries: 20
+      delay: 30 #seconds
+      until: task_result.status is defined
+
+    - name: Add metallb service resources
+      when: inventory_hostname in groups[ 'master_node' ]
+      block:
+      - name: Copy over dashboard resources
+        ansible.builtin.copy:
+          src: "{{ metallb_resources }}"
+          dest: /tmp/{{ metallb_resources }}
+          mode: u+r
+
+      - name: Replace metallb-namespace
+        ansible.builtin.replace:
+          path: /tmp/{{ metallb_resources }}
+          regexp: '\$\{metallb-namespace\}'
+          replace: "{{ metallb_namespace }}"
+
+      - name: Replace metrics-server-namespace
+        ansible.builtin.replace:
+          path: /tmp/{{ metallb_resources }}
+          regexp: '\$\{metrics-server-namespace\}'
+          replace: "{{ metrics_server_namespace }}"
+
+      - name: Replace dashboard-namespace
+        ansible.builtin.replace:
+          path: /tmp/{{ metallb_resources }}
+          regexp: '\$\{dashboard-namespace\}'
+          replace: "{{ dashboard_namespace }}"
+
+      - name: Replace coredns-external-namespace
+        ansible.builtin.replace:
+          path: /tmp/{{ metallb_resources }}
+          regexp: '\$\{coredns-external-namespace\}'
+          replace: "{{ coredns_external_namespace }}"
+
+      - name: Apply metallb resources
+        shell:
+          cmd: kubectl --kubeconfig={{ k3s_kubeconfig_location }} apply -f /tmp/{{ metallb_resources }}

@@ -10,3 +10,6 @@ scratch*/
 
 # Secrets
 *-secret.yaml
+
+# Builds - recreate as required
+builds/

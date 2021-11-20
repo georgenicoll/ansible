@@ -1,0 +1,24 @@
+---
+# See https://k3s.io/
+- name: Remove k3s
+  hosts: all
+  become: yes
+  gather_facts: False
+  
+  tasks:
+  
+  - name: Remove k3s
+    shell:
+      cmd: /usr/local/bin/k3s-uninstall.sh
+    ignore_errors: True
+      
+  - name: Removing k3s agent
+    shell:
+      cmd: /usr/local/bin/k3s-agent-uninstall.sh
+    ignore_errors: True
+
+  - name: Remove cni plugins
+    shell: 
+      cmd: rm -fr /etc/cni/net.d
+      warn: false
+    ignore_errors: True

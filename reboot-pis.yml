@@ -1,0 +1,12 @@
+---
+- name: Reboot pis
+  hosts: all
+  become: yes
+  gather_facts: False
+  
+  tasks:
+  - name: Rebooting machine after delay
+    become: yes
+    reboot:
+      msg: "Rebooting after ansible updates"
+      pre_reboot_delay: 10

@@ -7,6 +7,11 @@
   
   tasks:
   
+  - name: Enable dns on master
+    when: inventory_hostname in groups[ 'master_node' ]
+    shell:
+      cmd: microk8s enable dns
+  
   #- name: Enable multus (not working on pis at the moment)
   #  when: inventory_hostname in groups[ 'master_node' ]
   #  shell:

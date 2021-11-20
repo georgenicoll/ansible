@@ -1,0 +1,5 @@
+---
+- import_playbook: microk8s.01.install-microk8s.yaml
+- import_playbook: reboot-pis.yml
+- import_playbook: microk8s.02.enable-microk8s-services.yaml
+- import_playbook: microk8s.03.maybe-metallb-install.yaml

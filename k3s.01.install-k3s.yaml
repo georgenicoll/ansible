@@ -1,0 +1,119 @@
+---
+# See https://k3s.io/
+# For cilium on k3s see https://docs.cilium.io/en/stable/gettingstarted/k8s-install-helm/ and look for the k3s instructions
+- name: Install k3s
+  hosts: all
+  become: yes
+  gather_facts: True
+  vars:
+    shared_k3s_config: "--flannel-backend=none --disable-network-policy --disable servicelb --disable traefik --write-kubeconfig-mode 0644"
+    k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml
+    kubeconfig_location: ~/Dropbox/Kubernetes/kubeconfig-home-pis-k3s
+    cilium_namespace: kube-system
+    cilium_archive: cilium-linux-arm64.tar.gz
+    cilium_archive_checksum: "{{ cilium_archive }}.sha256sum"
+  
+  tasks:
+
+  - name: Get the helm snap
+    community.general.snap:
+      name: helm
+      state: present
+      classic: yes
+
+  - name: Download install script
+    ansible.builtin.get_url:
+      url: https://get.k3s.io
+      dest: /tmp/k3s.sh
+      mode: u+r
+
+  # https://rancher.com/docs/k3s/latest/en/installation/ha-embedded/
+  # https://docs.cilium.io/en/latest/gettingstarted/k3s/
+  - name: Install with clustering, without network stuff on master
+    when: inventory_hostname in groups[ 'master_node' ]
+    shell:
+      cmd: cat /tmp/k3s.sh | INSTALL_K3S_EXEC="server {{ shared_k3s_config }} --cluster-init" sh -
+
+  - name: copy across kubeconfig
+    when: inventory_hostname in groups[ 'master_node' ]
+    block:
+    - name: output kubeconfig
+      shell:
+        cmd: cat {{ k3s_kubeconfig_location }}
+      register: kubeconfig_output
+
+    - name: write kubeconfig to k3s kubeconfig file
+      delegate_to: "localhost"
+      become: false
+      shell:
+        cmd: echo "{{ kubeconfig_output.stdout }}" > {{ kubeconfig_location }}
+
+    - name: replace 127.0.0.1 with master_node
+      delegate_to: "localhost"
+      become: false
+      ansible.builtin.replace:
+        path: "{{ kubeconfig_location }}"
+        regexp: 127\.0\.0\.1
+        replace: "{{ groups[ 'master_node' ][0] }}"
+
+  - name: add helm repo
+    when: inventory_hostname in groups[ 'master_node' ]
+    become: false
+    kubernetes.core.helm_repository:
+      name: cilium
+      repo_url: https://helm.cilium.io/
+
+  - name: install cilium using helm
+    when: inventory_hostname in groups[ 'master_node' ]
+    become: false
+    kubernetes.core.helm:
+      kubeconfig: "{{ k3s_kubeconfig_location }}"
+      name: cilium
+      chart_ref: cilium/cilium
+      chart_version: 1.10.5
+      release_namespace: "{{ cilium_namespace }}"
+      create_namespace: true
+      values:
+        ipam:
+          operator:
+            clusterPoolIPv4PodCIDR: 10.9.8.0/16
+            clusterPoolIPv4MaskSize: 24
+    register: task_result
+    retries: 20
+    delay: 30 #seconds
+    until: task_result.status is defined
+
+  - name: Get clustering token
+    delegate_to: "{{ groups[ 'master_node' ][0] }}"
+    shell:
+      cmd: cat /var/lib/rancher/k3s/server/node-token
+    register: node_token
+
+  - name: Install non-master nodes as control plane nodes
+    ignore_errors: True # These might fail as it takes some time to start up/get connected, it's OK.
+    when: inventory_hostname not in groups[ 'master_node']
+    shell:
+      cmd: cat /tmp/k3s.sh | INSTALL_K3S_EXEC="server {{ shared_k3s_config }} --server https://{{ groups[ 'master_node' ][0] }}:6443 --token {{ node_token.stdout }}" sh -
+
+  - name: download cilium checksum
+    ansible.builtin.get_url:
+      url: https://github.com/cilium/cilium-cli/releases/latest/download/{{ cilium_archive_checksum }}
+      dest: /tmp/{{ cilium_archive_checksum }}
+      mode: u+r
+
+  - name: download cilium archive
+    ansible.builtin.get_url:
+      url: https://github.com/cilium/cilium-cli/releases/latest/download/{{ cilium_archive }}
+      dest: /tmp/{{ cilium_archive }}
+      mode: u+rx
+
+  - name: check cilium checksum
+    shell:
+      chdir: /tmp
+      cmd: sha256sum --check {{ cilium_archive_checksum }}
+
+  - name: unpack cilium archive
+    ansible.builtin.unarchive:
+      src: /tmp/{{ cilium_archive }}
+      dest: /usr/local/bin
+      remote_src: yes

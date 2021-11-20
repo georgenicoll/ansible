@@ -10,7 +10,6 @@
   tasks:
     - name: add metallb repo
       kubernetes.core.helm_repository:
-        binary_path: microk8s helm3
         name: metallb
         url: https://metallb.github.io/metallb
         state: present

@@ -1,0 +1,145 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-metrics-server
+  namespace: ${metrics-server-namespace}
+  labels:
+    service-type: external
+spec:
+  ports:
+    - protocol: TCP
+      port: 443
+      targetPort: 443
+  selector:
+    k8s-app: metrics-server
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-dashboard
+  namespace: ${dashboard-namespace}
+  labels:
+    service-type: external
+spec:
+  loadBalancerIP: 10.0.0.231
+  ports:
+    - protocol: TCP
+      port: 443
+      targetPort: 8443
+  selector:
+    k8s-app: kubernetes-dashboard
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-external-config
+  namespace: ${coredns-external-namespace}
+data: 
+  corefile: |
+    kubernetes:53 {
+      health
+      k8s_ext_dhcp {
+          ttlSeconds          30
+          continueOnNoMatch   false
+      }
+      kubernetes
+    }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coredns-external
+  namespace: ${coredns-external-namespace}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: coredns-external
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:coredns #use existing one (i.e. not a special one for coredns-external)
+subjects:
+- kind: ServiceAccount
+  name: coredns-external
+  namespace: ${coredns-external-namespace}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coredns-external
+  namespace: ${coredns-external-namespace}
+  labels:
+    app: coredns-external
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coredns-external
+  template:
+    metadata:
+      labels:
+        app: coredns-external
+    spec:
+      serviceAccountName: coredns-external
+      containers:
+      - name: coredns
+        image: georgenicoll/coredns
+        volumeMounts:
+          - mountPath: "/config/"
+            name: corefile
+            readOnly: true
+        ports:
+          - containerPort: 53
+            protocol: UDP
+        command:
+          - "/coredns"
+        args:
+          - "-conf=/config/Corefile"
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "20Mi"
+          limits:
+            cpu: "100m"
+            memory: "50Mi"
+        readinessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 1
+          httpGet:
+            path: "/health"
+            port: 8080
+        livenessProbe:
+          initialDelaySeconds: 3
+          periodSeconds: 3
+          httpGet:
+            path: "/health"
+            port: 8080
+      volumes:
+        - name: corefile
+          configMap:
+            name: coredns-external-config
+            items:
+            - key: corefile
+              path: Corefile
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-coredns
+  namespace: ${coredns-external-namespace}
+  labels:
+    service-type: external
+spec:
+  loadBalancerIP: 10.0.0.230
+  ports:
+  - protocol: UDP
+    port: 53
+    targetPort: 53
+  selector:
+    app: coredns-external
+  type: LoadBalancer
