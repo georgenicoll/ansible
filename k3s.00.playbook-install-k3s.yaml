@@ -6,7 +6,6 @@
 #     - add dashboard
 #     - add metallb and expose dashboard and metrics server to the local network using it
 ---
-- import_playbook: k3s.remove-k3s.yaml
 - import_playbook: k3s.01.install-k3s-and-cilium.yaml
 - import_playbook: k3s.02.install-hubble.yaml
 - import_playbook: k3s.03.dashboard-install.yaml
