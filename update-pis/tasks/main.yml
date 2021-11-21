@@ -33,7 +33,7 @@
 
 #- name: Run an arbitrary shell command
 #  become: yes
-#  shell: apt-key adv --keyserver keyserver.ubuntu.com --recv-keys FEEA9169307EA071
+#  ansible.builtin.shell: apt-key adv --keyserver keyserver.ubuntu.com --recv-keys FEEA9169307EA071
 #  args:
 #    executable: /bin/bash
 #  tags: arb-command

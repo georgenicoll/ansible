@@ -143,3 +143,20 @@ spec:
   selector:
     app: coredns-external
   type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-hubble-ui
+  namespace: ${cilium-namespace}
+  labels:
+    service-type: external
+spec:
+  loadBalancerIP: 10.0.0.232
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8081
+  selector:
+    k8s-app: hubble-ui
+  type: LoadBalancer

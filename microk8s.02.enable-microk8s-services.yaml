@@ -9,38 +9,38 @@
   
   - name: Enable dns on master
     when: inventory_hostname in groups[ 'master_node' ]
-    shell:
+    ansible.builtin.shell:
       cmd: microk8s enable dns
   
   #- name: Enable multus (not working on pis at the moment)
   #  when: inventory_hostname in groups[ 'master_node' ]
-  #  shell:
+  #  ansible.builtin.shell:
   #    cmd: microk8s enable multus    
    
   - name: Enable helm3
     when: inventory_hostname in groups[ 'master_node' ]
-    shell:
+    ansible.builtin.shell:
       cmd: microk8s enable helm3    
 
   - name: Enable dashboard
     when: inventory_hostname in groups[ 'master_node' ]
-    shell:
+    ansible.builtin.shell:
       cmd: microk8s enable dashboard    
 
   - name: Enable metrics-server
     when: inventory_hostname in groups[ 'master_node' ]
-    shell:
+    ansible.builtin.shell:
       cmd: microk8s enable metrics-server
 
   #- name: Enable prometheus
   #  when: inventory_hostname in groups[ 'master_node' ]
-  #  shell:
+  #  ansible.builtin.shell:
   #    cmd: microk8s enable prometheus
 
   # traefik with gateway stuff is in 03.
   #- name: Enable traefik
   #  when: inventory_hostname in groups[ 'master_node' ]
-  #  shell:
+  #  ansible.builtin.shell:
   #    cms: microk8s enable traefik
 
 

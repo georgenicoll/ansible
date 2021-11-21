@@ -8,17 +8,17 @@
   tasks:
   
   - name: Remove k3s
-    shell:
+    ansible.builtin.shell:
       cmd: /usr/local/bin/k3s-uninstall.sh
     ignore_errors: True
       
   - name: Removing k3s agent
-    shell:
+    ansible.builtin.shell:
       cmd: /usr/local/bin/k3s-agent-uninstall.sh
     ignore_errors: True
 
   - name: Remove cni plugins
-    shell: 
+    ansible.builtin.shell: 
       cmd: rm -fr /etc/cni/net.d
       warn: false
     ignore_errors: True

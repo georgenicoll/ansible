@@ -6,11 +6,12 @@
   gather_facts: False
   vars:
     k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml
-    metallb_resources: k3s.03.metallb-resources.yaml
+    metallb_resources: k3s.04.metallb-kubectl-resources.yaml
     metallb_namespace: metallb
     metrics_server_namespace: kube-system
     dashboard_namespace: kube-utils
     coredns_external_namespace: kube-utils
+    cilium_namespace: kube-system
 
   tasks:
 
@@ -86,6 +87,16 @@
           regexp: '\$\{coredns-external-namespace\}'
           replace: "{{ coredns_external_namespace }}"
 
+      - name: Replace cilium-namespace
+        ansible.builtin.replace:
+          path: /tmp/{{ metallb_resources }}
+          regexp: '\$\{cilium-namespace\}'
+          replace: "{{ cilium_namespace }}"
+
       - name: Apply metallb resources
-        shell:
+        ansible.builtin.shell:
           cmd: kubectl --kubeconfig={{ k3s_kubeconfig_location }} apply -f /tmp/{{ metallb_resources }}
+        register: task_result
+        retries: 20
+        delay: 30 #seconds
+        until: task_result.rc == 0

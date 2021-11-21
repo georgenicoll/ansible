@@ -12,7 +12,7 @@
   tasks:
 
   - name: Set snap retain
-    shell:
+    ansible.builtin.shell:
       cmd: snap set system refresh.retain=2
 
   - name: Install microk8s
@@ -33,11 +33,11 @@
           dest: /tmp/{{ modified_snap }}
 
       - name: Install modified snap
-        shell:
+        ansible.builtin.shell:
           cmd: snap install /tmp/{{ modified_snap }} --classic --dangerous
       
   - name: Setup users in groups
-    shell:
+    ansible.builtin.shell:
       cmd: usermod -a -G microk8s {{ item }}
     with_items: 
       - george
@@ -47,18 +47,18 @@
       path: "/home/{{ item }}/.kube"
       owner: "{{ item }}"
       recurse: yes
-    #shell:
+    #ansible.builtin.shell:
     #  cmd: chown -f -R {{ item }} /home/{{ item }}/.kube
     with_items: 
       - george
     
   - name: Wait ready...
-    shell:
+    ansible.builtin.shell:
       cmd: microk8s status --wait-ready
 
   - name: Enable Cilium
     when: use_cilium
-    shell:
+    ansible.builtin.shell:
       cmd: microk8s enable cilium - --set ipam.operator.clusterPoolIPv4PodCIDR="10.9.8.0/16" --set ipam.operator.clusterPoolIPv4MaskSize=24
       
   - name: add nodes to master
@@ -68,7 +68,7 @@
     block:
       - name: run add-node on master
         delegate_to: "{{ groups[ 'master_node' ][0] }}"
-        shell:
+        ansible.builtin.shell:
           cmd: microk8s add-node
         register: command_output
 
@@ -84,7 +84,7 @@
           
       - name: join cluster
         when: inventory_hostname not in groups[ 'master_node' ]
-        shell:
+        ansible.builtin.shell:
           cmd: "{{ (command_output.stdout_lines | select('match', '^microk8s join.*') | list)[0] }}"
 
   - name: copy across kubeconfig
@@ -93,12 +93,12 @@
     when: inventory_hostname in groups[ 'master_node' ]
     block:
     - name: generate microk8s kubeconfig on master node
-      shell:
+      ansible.builtin.shell:
         cmd: microk8s config
       register: kubectl_output
 
     - name: write kubeconfig to microk8s kubeconfig file
       delegate_to: "localhost"
       become: false
-      shell:
+      ansible.builtin.shell:
         cmd: echo "{{ kubectl_output.stdout }}" > ~/Dropbox/Kubernetes/kubeconfig-home-pis-microk8s

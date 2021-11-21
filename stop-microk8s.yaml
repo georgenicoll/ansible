@@ -5,5 +5,5 @@
   
   tasks:
   - name: Stop microk8s
-    shell:
+    ansible.builtin.shell:
       cmd: microk8s stop

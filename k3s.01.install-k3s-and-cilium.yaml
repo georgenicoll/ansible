@@ -1,7 +1,7 @@
 ---
 # See https://k3s.io/
 # For cilium on k3s see https://docs.cilium.io/en/stable/gettingstarted/k8s-install-helm/ and look for the k3s instructions
-- name: Install k3s
+- name: Install k3s and cilium
   hosts: all
   become: yes
   gather_facts: True
@@ -12,7 +12,12 @@
     cilium_namespace: kube-system
     cilium_archive: cilium-linux-arm64.tar.gz
     cilium_archive_checksum: "{{ cilium_archive }}.sha256sum"
-  
+    cilium_values:
+      ipam:
+        operator:
+          clusterPoolIPv4PodCIDR: 10.9.8.0/16
+          clusterPoolIPv4MaskSize: 24
+
   tasks:
 
   - name: Get the helm snap
@@ -31,21 +36,21 @@
   # https://docs.cilium.io/en/latest/gettingstarted/k3s/
   - name: Install with clustering, without network stuff on master
     when: inventory_hostname in groups[ 'master_node' ]
-    shell:
+    ansible.builtin.shell:
       cmd: cat /tmp/k3s.sh | INSTALL_K3S_EXEC="server {{ shared_k3s_config }} --cluster-init" sh -
 
   - name: copy across kubeconfig
     when: inventory_hostname in groups[ 'master_node' ]
     block:
     - name: output kubeconfig
-      shell:
+      ansible.builtin.shell:
         cmd: cat {{ k3s_kubeconfig_location }}
       register: kubeconfig_output
 
     - name: write kubeconfig to k3s kubeconfig file
       delegate_to: "localhost"
       become: false
-      shell:
+      ansible.builtin.shell:
         cmd: echo "{{ kubeconfig_output.stdout }}" > {{ kubeconfig_location }}
 
     - name: replace 127.0.0.1 with master_node
@@ -73,11 +78,7 @@
       chart_version: 1.10.5
       release_namespace: "{{ cilium_namespace }}"
       create_namespace: true
-      values:
-        ipam:
-          operator:
-            clusterPoolIPv4PodCIDR: 10.9.8.0/16
-            clusterPoolIPv4MaskSize: 24
+      values: "{{ cilium_values }}"
     register: task_result
     retries: 20
     delay: 30 #seconds
@@ -85,35 +86,38 @@
 
   - name: Get clustering token
     delegate_to: "{{ groups[ 'master_node' ][0] }}"
-    shell:
+    ansible.builtin.shell:
       cmd: cat /var/lib/rancher/k3s/server/node-token
     register: node_token
 
   - name: Install non-master nodes as control plane nodes
     ignore_errors: True # These might fail as it takes some time to start up/get connected, it's OK.
     when: inventory_hostname not in groups[ 'master_node']
-    shell:
+    ansible.builtin.shell:
       cmd: cat /tmp/k3s.sh | INSTALL_K3S_EXEC="server {{ shared_k3s_config }} --server https://{{ groups[ 'master_node' ][0] }}:6443 --token {{ node_token.stdout }}" sh -
 
-  - name: download cilium checksum
-    ansible.builtin.get_url:
-      url: https://github.com/cilium/cilium-cli/releases/latest/download/{{ cilium_archive_checksum }}
-      dest: /tmp/{{ cilium_archive_checksum }}
-      mode: u+r
+  - name: download cilium client
+    block:
 
-  - name: download cilium archive
-    ansible.builtin.get_url:
-      url: https://github.com/cilium/cilium-cli/releases/latest/download/{{ cilium_archive }}
-      dest: /tmp/{{ cilium_archive }}
-      mode: u+rx
+    - name: download cilium checksum
+      ansible.builtin.get_url:
+        url: https://github.com/cilium/cilium-cli/releases/latest/download/{{ cilium_archive_checksum }}
+        dest: /tmp/{{ cilium_archive_checksum }}
+        mode: u+r
 
-  - name: check cilium checksum
-    shell:
-      chdir: /tmp
-      cmd: sha256sum --check {{ cilium_archive_checksum }}
+    - name: download cilium archive
+      ansible.builtin.get_url:
+        url: https://github.com/cilium/cilium-cli/releases/latest/download/{{ cilium_archive }}
+        dest: /tmp/{{ cilium_archive }}
+        mode: u+rx
 
-  - name: unpack cilium archive
-    ansible.builtin.unarchive:
-      src: /tmp/{{ cilium_archive }}
-      dest: /usr/local/bin
-      remote_src: yes
+    - name: check cilium checksum
+      ansible.builtin.shell:
+        chdir: /tmp
+        cmd: sha256sum --check {{ cilium_archive_checksum }}
+
+    - name: unpack cilium archive
+      ansible.builtin.unarchive:
+        src: /tmp/{{ cilium_archive }}
+        dest: /usr/local/bin
+        remote_src: yes

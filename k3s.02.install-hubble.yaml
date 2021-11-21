@@ -1,0 +1,107 @@
+---
+# See https://k3s.io/
+# For cilium on k3s see https://docs.cilium.io/en/stable/gettingstarted/k8s-install-helm/ and look for the k3s instructions
+- name: Install Hubble
+  hosts: all
+  become: yes
+  gather_facts: True
+  vars:
+    k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml
+    cilium_namespace: kube-system
+    hubble_values: 
+      hubble:
+        relay:  
+          enabled: true
+        ui:
+          enabled: true
+    hubble_version_file: hubble_version_file.txt
+    hubble_archive: hubble-linux-arm64.tar.gz
+    hubble_archive_checksum: "{{ hubble_archive }}.sha256sum"
+  
+  tasks:
+
+  - name: Install hubble using helm
+    when: inventory_hostname in groups[ 'master_node' ]
+    become: false
+    block:
+
+    - name: Get the helm snap
+      become: true
+      community.general.snap:
+        name: helm
+        state: present
+        classic: yes
+
+    - name: add helm repo
+      kubernetes.core.helm_repository:
+        name: cilium
+        repo_url: https://helm.cilium.io/
+
+    - name: get info about the current helm cilium install
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ k3s_kubeconfig_location }}"
+        name: cilium
+        release_namespace: "{{ cilium_namespace }}"
+      register: cilium_info
+      retries: 20
+      delay: 30 #seconds
+      until: cilium_info.status is defined
+
+    #- name: output cilium info before hubble update
+    #  ansible.builtin.debug: 
+    #    var: cilium_info
+
+    - name: upgrade cilium using helm (enable hubble)
+      kubernetes.core.helm:
+        kubeconfig: "{{ k3s_kubeconfig_location }}"
+        name: cilium
+        chart_ref: cilium/cilium
+        chart_version: 1.10.5
+        release_namespace: "{{ cilium_namespace }}"
+        create_namespace: true
+        values: '{{ cilium_info.get("status").get("values") | combine(hubble_values) }}'
+      register: task_result
+      retries: 20
+      delay: 30 #seconds
+      until: task_result.status is defined
+
+    - name: get info about the current helm cilium install
+      kubernetes.core.helm_info:
+        kubeconfig: "{{ k3s_kubeconfig_location }}"
+        name: cilium
+        release_namespace: "{{ cilium_namespace }}"
+      register: cilium_info
+      retries: 20
+      delay: 30 #seconds
+      until: task_result.status is defined
+
+    - name: output cilium info after hubble update
+      ansible.builtin.debug: 
+        var: cilium_info
+
+  - name: Install the hubble client
+    become: true
+    block:
+      
+    - name: get hubble archive checksum
+      ansible.builtin.get_url:
+        url: https://github.com/cilium/hubble/releases/latest/download/{{ hubble_archive_checksum }}
+        dest: /tmp/{{ hubble_archive_checksum }}
+        mode: u+r
+        
+    - name: get hubble archive
+      ansible.builtin.get_url:
+        url: https://github.com/cilium/hubble/releases/latest/download/{{ hubble_archive }}
+        dest: /tmp/{{ hubble_archive }}
+        mode: u+rx
+
+    - name: check hubble archive
+      ansible.builtin.shell:
+        chdir: /tmp
+        cmd: sha256sum --check {{ hubble_archive_checksum }}
+
+    - name: unpack hubble archive
+      ansible.builtin.unarchive:
+        src: /tmp/{{ hubble_archive }}
+        dest: /usr/local/bin
+        remote_src: yes

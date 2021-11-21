@@ -7,7 +7,7 @@
   vars:
     k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml
     dashboard_namespace: kube-utils
-    dashboard_resources: k3s.02.dashboard-resources.yaml
+    dashboard_resources: k3s.03.dashboard-kubectl-resources.yaml
     admin_user_token_location: ~/Dropbox/Kubernetes/admin-user-token-home-pis-k3s
   
   tasks:
@@ -68,11 +68,15 @@
           replace: "{{ dashboard_namespace }}"
 
       - name: Apply dashboard resources
-        shell:
+        ansible.builtin.shell:
           cmd: kubectl --kubeconfig={{ k3s_kubeconfig_location }} apply -f /tmp/{{ dashboard_resources }}
+        register: task_result
+        retries: 20
+        delay: 30 #seconds
+        until: task_result.rc == 0
 
       - name: Lookup bearer token
-        shell:
+        ansible.builtin.shell:
           cmd: kubectl --kubeconfig={{ k3s_kubeconfig_location }} -n {{ dashboard_namespace }} describe secret admin-user-token | grep '^token'
         register: admin_user_token
         retries: 20
@@ -82,5 +86,5 @@
       - name: write token to admin user token file
         delegate_to: "localhost"
         become: false
-        shell:
+        ansible.builtin.shell:
           cmd: echo "{{ admin_user_token.stdout }}" > {{ admin_user_token_location }}

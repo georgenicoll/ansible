@@ -6,11 +6,11 @@
   
   tasks:
   - name: Run kubeadm reset
-    shell: kubeadm reset --force
+    ansible.builtin.shell: kubeadm reset --force
     ignore_errors: True
 
   - name: Remove cni plugins
-    shell: 
+    ansible.builtin.shell: 
       cmd: rm -fr /etc/cni/net.d
       warn: false
     ignore_errors: True
@@ -28,11 +28,11 @@
     ignore_errors: True
     
   - name: Clean iptables delete chains
-    shell: iptables -X
+    ansible.builtin.shell: iptables -X
     ignore_errors: True
     
   - name: ipvsadm clear
-    shell: ipvsadm -C
+    ansible.builtin.shell: ipvsadm -C
     ignore_errors: True
 
 #  - name: Rebooting machine after delay
