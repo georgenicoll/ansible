@@ -1,0 +1,88 @@
+- name: Install longhorn
+  hosts: all
+  become: yes
+  gather_facts: True
+  vars:
+    environment_check_script: environment_check.sh
+    k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml
+    longhorn_namespace: longhorn-system
+    longhorn_resources: k3s.05.longhorn-resources.yaml
+
+  tasks:
+
+  - name: Install open-iscsi, jq
+    ansible.builtin.apt:
+      pkg: 
+      - open-iscsi
+      - jq
+      state: present
+
+  - name: Get kubectl version
+    ansible.builtin.shell:
+      cmd: kubectl version
+    register: kubectl_version
+
+  - name: Output kubectl version
+    ansible.builtin.debug:
+      msg: "{{ kubectl_version.stdout }}"
+
+  - name: Download environment check script
+    ansible.builtin.get_url:
+      url: https://raw.githubusercontent.com/longhorn/longhorn/master/scripts/environment_check.sh
+      dest: /tmp/{{ environment_check_script }}
+      mode: u+rx
+
+  - name: Run environment check script
+    ansible.builtin.shell:
+      cmd: /tmp/{{ environment_check_script }}
+    register: check_result
+
+  - name: Outout check result
+    ansible.builtin.debug:
+      msg: "{{ check_result.stdout }}" 
+
+  - name: Install longhorn using helm
+    when: inventory_hostname in groups[ 'master_node' ]
+    block:
+
+    - name: Add loghorn helm repo
+      kubernetes.core.helm_repository:
+        name: longhorn
+        url: https://charts.longhorn.io
+        state: present
+
+    - name: Add longhorn using helm
+      kubernetes.core.helm:
+        kubeconfig: "{{ k3s_kubeconfig_location }}"
+        update_repo_cache: true
+        create_namespace: true
+        name: longhorn
+        namespace: "{{ longhorn_namespace }}"
+        chart_ref: longhorn/longhorn
+      register: task_result
+      retries: 20
+      delay: 30 #seconds
+      until: task_result.status is defined
+
+    - name: Apply longhorn resources
+      block:
+
+      - name: Copy over longhorn resources
+        ansible.builtin.copy:
+          src: "{{ longhorn_resources }}"
+          dest: /tmp/{{ longhorn_resources }}
+          mode: u+r
+
+      - name: Replace longhorn-namespace
+        ansible.builtin.replace:
+          path: /tmp/{{ longhorn_resources }}
+          regexp: '\$\{longhorn-namespace\}'
+          replace: "{{ longhorn_namespace }}"
+
+      - name: Apply longhorn resources
+        ansible.builtin.shell:
+          cmd: kubectl --kubeconfig={{ k3s_kubeconfig_location }} apply -f /tmp/{{ longhorn_resources }}
+        register: task_result
+        retries: 20
+        delay: 30 #seconds
+        until: task_result.rc == 0
