@@ -5,5 +5,5 @@
   port: 22
   gather_facts: False
   roles:
-    - { role: update-pis, tags: [ "apt_update","apt_dist_upgrade","standard_installs","reboot_machine" ] }
+    - { role: update-pis, tags: [ "apt_update","apt_upgrade","apt_dist_upgrade","standard_installs","reboot_machine" ] }
 

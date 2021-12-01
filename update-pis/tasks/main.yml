@@ -2,10 +2,21 @@
 # tasks file for update-pis
 - name: Run apt update
   become: yes
+  async: 108000 # 30 mins (in seconds)
+  poll: 20
   apt:
     update_cache: yes
   register: ran_apt_update
   tags: apt_update
+
+- name: Run apt upgrade
+  become: yes
+  async: 108000 # 30 mins (in seconds)
+  poll: 20
+  apt:
+    upgrade: yes
+  register: ran_apt_upgrade
+  tags: apt_upgrade
 
 - name: Run apt dist-upgrade
   become: yes
@@ -41,6 +52,10 @@
 - debug:
     msg: "Ran apt update."
   when: ran_apt_update.changed == true
+
+- debug:
+    msg: "Ran apt upgrade."
+  when: ran_apt_upgrade.changed == true
 
 - debug:
     msg: "Ran apt dist-upgrade."
