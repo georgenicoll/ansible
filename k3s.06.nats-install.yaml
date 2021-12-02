@@ -1,0 +1,37 @@
+- name: Install NATS
+  hosts: all
+  become: yes
+  gather_facts: True
+  vars:
+    k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml
+    nats_namespace: nats
+
+  tasks:
+
+  - name: Install NATS using helm
+    when: inventory_hostname in groups[ 'master_node' ]
+    block:
+
+    - name: Add nats helm repo
+      kubernetes.core.helm_repository:
+        name: nats
+        url: https://nats-io.github.io/k8s/helm/charts/
+        state: present
+
+    - name: Add nats using helm
+      kubernetes.core.helm:
+        kubeconfig: "{{ k3s_kubeconfig_location }}"
+        update_repo_cache: true
+        create_namespace: true
+        name: nats
+        namespace: "{{ nats_namespace }}"
+        chart_ref: nats/nats
+        values:
+          nats:
+            image: nats:alpine3.14
+          natsbox:
+            image: natsio/nats-box:latest
+      register: task_result
+      retries: 20
+      delay: 30 #seconds
+      until: task_result.status is defined

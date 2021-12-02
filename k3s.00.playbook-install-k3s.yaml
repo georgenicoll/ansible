@@ -15,3 +15,4 @@
 - import_playbook: k3s.03.dashboard-install.yaml
 - import_playbook: k3s.04.metallb-install.yaml
 - import_playbook: k3s.05.longhorn-install.yaml
+- import_playbook: k3s.06.nats-install.yaml
