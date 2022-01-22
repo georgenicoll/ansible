@@ -1,0 +1,42 @@
+# This playbook installs crossplane into k3s.
+# For info see:  https://crossplane.io/docs/v1.6/getting-started/install-configure.html
+# specifically installing the crossplane cli which (at the time of writing) is an extension to kubectl
+# installed using:
+# - curl -sL https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh | sh
+# - sudo mv kubectl-crossplane /snap/bin
+---
+- name: Install Crossplane
+  hosts: all
+  become: yes
+  gather_facts: True
+  vars:
+    crossplane_namespace: crossplane-system
+    k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml        
+
+  tasks:
+
+  - name: Install NATS using helm
+    when: inventory_hostname in groups[ 'master_node' ]
+    block:
+
+    - name: Add crossplane repo to helm
+      kubernetes.core.helm_repository:
+        name: crossplane-stable
+        url: https://charts.crossplane.io/stable
+        state: present
+
+    - name: Add crossplane using helm
+      kubernetes.core.helm:
+        kubeconfig: "{{ k3s_kubeconfig_location }}"
+        update_repo_cache: true
+        create_namespace: true
+        name: crossplane
+        namespace: "{{ crossplane_namespace }}"
+        chart_ref: crossplane-stable/crossplane
+      register: task_result
+      retries: 20
+      delay: 30 #seconds
+      until: task_result.status is defined
+  
+
+
