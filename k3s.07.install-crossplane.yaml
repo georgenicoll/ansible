@@ -1,7 +1,7 @@
 # This playbook installs crossplane into k3s.
 # For info see:  https://crossplane.io/docs/v1.6/getting-started/install-configure.html
-# specifically installing the crossplane cli which (at the time of writing) is an extension to kubectl
-# installed using:
+# Additionally, one can install the crossplane cli kubectl extension which (at the time of writing)
+# can be manually installed independently of this script using:
 # - curl -sL https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh | sh
 # - sudo mv kubectl-crossplane /snap/bin
 ---
