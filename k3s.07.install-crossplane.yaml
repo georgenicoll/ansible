@@ -15,7 +15,7 @@
 
   tasks:
 
-  - name: Install NATS using helm
+  - name: Install crossplane using helm
     when: inventory_hostname in groups[ 'master_node' ]
     block:
 
