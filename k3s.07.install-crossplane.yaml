@@ -37,6 +37,3 @@
       retries: 20
       delay: 30 #seconds
       until: task_result.status is defined
-  
-
-

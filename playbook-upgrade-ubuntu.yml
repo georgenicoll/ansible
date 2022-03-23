@@ -1,0 +1,50 @@
+---
+- name: Upgrade Ubuntu
+  hosts: all
+  become: yes
+  gather_facts: True
+
+  tasks:
+
+  - name: Install update-manager-core
+    ansible.builtin.apt:
+      name: update-manager-core
+      state: present
+  
+  - name: Change to Prompt=normal
+    ansible.builtin.replace:
+      path: /etc/update-manager/release-upgrades
+      regexp: '^Prompt=\S*'
+      replace: 'Prompt=normal'
+
+  - name: Check release
+    ansible.builtin.shell:
+      cmd: do-release-upgrade -c
+    register: upgrade_check_output
+
+  - name: Response from check
+    ansible.builtin.debug:
+      msg: "{{ upgrade_check_output.stdout_lines }}"
+
+  - name: Doing the upgrade
+    ansible.builtin.shell:
+      cmd: do-release-upgrade -q -f DistUpgradeViewNonInteractive
+    register: upgrade_output
+
+  - name: Upgrade output
+    ansible.builtin.debug:
+      msg: "{{ upgrade_output.stdout_lines }}"
+
+  - name: Rebooting after 20 seconds
+    ansible.builtin.reboot:
+      pre_reboot_delay: 20
+      post_reboot_delay: 10
+
+  - name: Running uname -a
+    ansible.builtin.shell:
+      cmd: uname -a
+    register: uname_output
+
+  - name: uname output
+    ansible.builtin.debug:
+      msg: "{{ uname_output.stdout_lines }}"
