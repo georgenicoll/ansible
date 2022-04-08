@@ -19,7 +19,7 @@
 
   - name: Get kubectl version
     ansible.builtin.shell:
-      cmd: kubectl version
+      cmd: kubectl --kubeconfig={{ k3s_kubeconfig_location }}  version
     register: kubectl_version
 
   - name: Output kubectl version
