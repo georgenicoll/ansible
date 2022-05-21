@@ -1,0 +1,32 @@
+# This playbook will apply the kernel built using the initial step kernel.01.build-kernel-locally-with-updated-config.yaml
+#
+# kernel.01... requires that the kernel is built locally outside the ansible-script, once that's done, 
+#   and kernel.01... is re-run to copy the debs to the machines.
+#
+---
+- name: Apply kernel with vxlan and sysfs_btf
+  hosts: all
+  become: True
+  gather_facts: True
+
+  tasks:
+
+  - name: run dpkg -i
+    ansible.builtin.shell:
+      chdir: /tmp/kernels
+      cmd: dpkg -i linux-image_arm64.deb
+    register: dpkg_output
+  - name: output from dpkg
+    ansible.builtin.debug:
+      msg: "{{ dpkg_output.stdout_lines }}"
+  - name: reboot
+    reboot:
+      msg: "Rebooting after ansible updates"
+      pre_reboot_delay: 10
+  - name: ls -la /sys/kernel/btf/vmlinux
+    ansible.builtin.shell:
+      cmd: ls -la /sys/kernel/btf/vmlinux
+    register: ls_output
+  - name: output from ls
+    ansible.builtin.debug:
+      msg: "{{ ls_output.stdout }}"

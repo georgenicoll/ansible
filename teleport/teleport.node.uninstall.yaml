@@ -1,0 +1,22 @@
+---
+- name: Remove teleport from nodes
+  hosts: all
+  become: True
+  gather_facts: True
+
+  tasks:
+
+  - name: Remove teleport
+    block:
+    - name: remove teleport
+      ansible.builtin.apt:
+        pkg: teleport
+        state: absent
+    - name: remove /etc/teleport.yaml
+      ansible.builtin.file:
+        path: /etc/teleport.yaml
+        state: absent
+    - name: remove /var/lib/teleport
+      ansible.builtin.file:
+        path: /var/lib/teleport
+        state: absent        

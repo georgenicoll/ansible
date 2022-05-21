@@ -1,0 +1,103 @@
+# This play book requires the following to be performed/setup before running it:
+# 1) Login to teleport on the local machine using tsh:
+#     tsh login --proxy=<proxy> --user=<admin-user>
+---
+- name: Set up teleport on nodes
+  hosts: all
+  become: True
+  gather_facts: True
+  vars:
+    join_port: 443 #This will connect to the server in tunnel mode
+
+  tasks:
+
+  - name: Install teleport
+    block:
+    - name: add teleport key
+      ansible.builtin.shell:
+        cmd: curl https://deb.releases.teleport.dev/teleport-pubkey.asc -o /usr/share/keyrings/teleport-archive-keyring.asc
+    - name: add teleport api repo
+      ansible.builtin.apt_repository:
+        repo: deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] https://deb.releases.teleport.dev/ stable main
+        state: present
+        update_cache: True
+    - name: install teleport
+      ansible.builtin.apt:
+        pkg: teleport
+        state: present
+
+  - name: Get local command line values
+    become: False
+    delegate_to: localhost
+    block:
+    - name: run tctl commands
+      ansible.builtin.shell:
+        cmd: tctl tokens add --type=node
+      register: add_node_output
+    - name: add node output
+      ansible.builtin.debug:
+        var: add_node_output
+    - name: get token
+      ansible.builtin.shell:
+        cmd: echo "{{ add_node_output.stdout }}" | grep -oP '\-\-token=[a-f0-9]*' | sed 's/--token=\(.*\)/\1/'
+      register: token
+    - name: get ca-pin
+      ansible.builtin.shell:
+        cmd: echo "{{ add_node_output.stdout }}" | grep -oP '\-\-ca-pin=[a-z0-9]*:[a-f0-9]*' | sed 's/--ca-pin=\(.*\)/\1/'
+      register: ca_pin
+    - name: get auth server
+      ansible.builtin.shell:
+        cmd: echo "{{ add_node_output.stdout }}" | grep -oP '\-\-auth\-server=[a-z0-9\.\-]*' | sed 's/--auth-server=\(.*\)/\1:{{ join_port }}/'
+      register: auth_server
+
+  - name: Get remote command line values
+    block:
+    - name: get node name
+      ansible.builtin.shell:
+        cmd: echo "$(hostname)"
+      register: node_name
+
+  - name: output things
+    ansible.builtin.debug:
+      msg:
+      - "{{ token.stdout }}"
+      - "{{ ca_pin.stdout }}"
+      - "{{ auth_server.stdout }}"
+      - "{{ node_name.stdout }}"
+
+  - name: Start teleport
+    block:
+    - name: stop the service (if it's running)
+      ansible.builtin.service:
+        name: teleport
+        state: stopped
+    - name: copy across the teleport config
+      ansible.builtin.copy:
+        src: teleport-config.yaml
+        dest: /etc/teleport.yaml
+        force: True
+    - name: replace <node-name>
+      ansible.builtin.replace:
+        path: /etc/teleport.yaml
+        regexp: '\<node\-name\>'
+        replace: "{{ node_name.stdout }}"
+    - name: replace <auth-token>
+      ansible.builtin.replace:
+        path: /etc/teleport.yaml
+        regexp: '\<auth\-token\>'
+        replace: "{{ token.stdout }}"
+    - name: replace <auth-server>
+      ansible.builtin.replace:
+        path: /etc/teleport.yaml
+        regexp: '\<auth\-server\>'
+        replace: "{{ auth_server.stdout }}"
+    - name: replace <ca-pin>
+      ansible.builtin.replace:
+        path: /etc/teleport.yaml
+        regexp: '\<ca\-pin\>'
+        replace: "{{ ca_pin.stdout }}"
+    - name: start and enable the service
+      ansible.builtin.service:
+        name: teleport
+        state: started
+        enabled: yes

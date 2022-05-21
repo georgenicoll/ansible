@@ -18,26 +18,31 @@
       state: present
 
   - name: Get kubectl version
+    when: inventory_hostname in groups[ 'master_node' ]
     ansible.builtin.shell:
       cmd: kubectl --kubeconfig={{ k3s_kubeconfig_location }}  version
     register: kubectl_version
 
   - name: Output kubectl version
+    when: inventory_hostname in groups[ 'master_node' ]
     ansible.builtin.debug:
       msg: "{{ kubectl_version.stdout }}"
 
   - name: Download environment check script
+    when: inventory_hostname in groups[ 'master_node' ]
     ansible.builtin.get_url:
       url: https://raw.githubusercontent.com/longhorn/longhorn/master/scripts/environment_check.sh
       dest: /tmp/{{ environment_check_script }}
       mode: u+rx
 
   - name: Run environment check script
+    when: inventory_hostname in groups[ 'master_node' ]
     ansible.builtin.shell:
       cmd: /tmp/{{ environment_check_script }}
     register: check_result
 
-  - name: Outout check result
+  - name: Output check result
+    when: inventory_hostname in groups[ 'master_node' ]
     ansible.builtin.debug:
       msg: "{{ check_result.stdout }}" 
 
@@ -45,7 +50,7 @@
     when: inventory_hostname in groups[ 'master_node' ]
     block:
 
-    - name: Add loghorn helm repo
+    - name: Add longhorn helm repo
       kubernetes.core.helm_repository:
         name: longhorn
         url: https://charts.longhorn.io

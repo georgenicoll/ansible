@@ -1,0 +1,42 @@
+---
+# See https://k3s.io/
+- name: Remove k3s
+  hosts: all
+  become: yes
+  gather_facts: False
+  
+  tasks:
+  
+  - name: Remove k3s
+    ansible.builtin.shell:
+      cmd: /usr/local/bin/k3s-uninstall.sh
+    ignore_errors: True
+      
+  - name: Removing k3s agent
+    ansible.builtin.shell:
+      cmd: /usr/local/bin/k3s-agent-uninstall.sh
+    ignore_errors: True
+
+  - name: Remove cni plugins
+    ansible.builtin.shell: 
+      cmd: rm -fr /etc/cni/net.d
+      warn: false
+    ignore_errors: True
+
+  - name: Remove cni binaries
+    ansible.builtin.shell: 
+      cmd: rm -fr /etc/cni/bin
+      warn: false
+    ignore_errors: True
+
+  - name: Remove cilium interfaces
+    ansible.builtin.shell: 
+      cmd: "ip link | sed -n 1~2p | awk -F ': ' '{ print $2 }' | grep cilium | xargs -0 -L 1 -d '\n' -r ip link delete"
+      warn: false
+    ignore_errors: True
+
+  - name: Rebooting machine after delay
+    become: yes
+    reboot:
+      msg: "Rebooting after ansible updates"
+      pre_reboot_delay: 5

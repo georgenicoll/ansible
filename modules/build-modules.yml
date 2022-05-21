@@ -1,0 +1,288 @@
+# This playbook will download the linux sources for the currently running kernel, build the vxlan and sysfs_btf modules,
+# load the modules into the kernel and set the modules to be loaded upon startup.
+#
+# vxlan requires udp_tunnel and ip6_udp_tunnel modules to be available.
+#
+# The script currently builds the modules on all hosts but could be made more efficient by building on 1 host
+# and copying to all of the others (assuming that all kernel versions are compatible).  
+---
+- name: Build vxlan module
+  hosts: all
+  become: yes
+  gather_facts: True
+  vars:
+    unpack_sources: True # set to False to not attempt to download and unpack sources (False is useful for testing)
+    remove_sources: True # set to False to not remove sources at the end of the script (False is useful for testing)
+
+  tasks:
+
+  - name: Show vxlan or sysfs_btf lines in lsmod
+    block:
+
+      - name: Run lsmod | grep -E "vxlan|sysfs_btf"
+        ansible.builtin.shell:
+          cmd: lsmod | grep -E "vxlan|sysfs_btf" || echo "Nothing"
+        register: lsmod_output
+
+      - name: output lsmod output
+        ansible.builtin.debug:
+          msg: "{{ lsmod_output.stdout_lines }}"
+
+  - name: Install flex, bison, libselinux1-dev, linux source, etc..
+    ansible.builtin.apt:
+      pkg: 
+      - flex
+      - bison
+      - libselinux1-dev
+      - linux-source
+      - libssl-dev
+      state: present
+
+  - name: Get linux version
+    ansible.builtin.shell:
+      cmd: uname -r
+    register: linux_version
+    
+  - name: Output linux version
+    ansible.builtin.debug:
+      msg: "{{ linux_version.stdout }}"
+
+  - name: Install linux headers
+    ansible.builtin.apt:
+      name: linux-headers-{{ linux_version.stdout }}
+      state: present
+
+  - name: Get linux semantic version
+    ansible.builtin.shell:
+      cmd: "dpkg -s linux-source | grep Version | awk -F ': |\\\\.' '{ print $2\".\"$3\".\"$4 }'"
+    register: linux_semantic_version
+
+  - name: Output linux semantic version
+    ansible.builtin.debug:
+      msg: "{{ linux_semantic_version.stdout }}"
+
+  - name: Delete linux source from tmp
+    when: unpack_sources
+    ansible.builtin.file:
+      path: /tmp/linux-sources
+      state: absent
+
+  - name: Create output directory in tmp
+    when: unpack_sources
+    ansible.builtin.file:
+      path: /tmp/linux-sources
+      state: directory
+      mode: '0755'
+
+  - name: Unpack linux source to tmp
+    when: unpack_sources
+    ansible.builtin.unarchive:
+      src: /usr/src/linux-source-{{ linux_semantic_version.stdout }}.tar.bz2
+      dest: /tmp/linux-sources
+      remote_src: yes
+
+  - name: configure/prepare/scripts...
+    ansible.builtin.shell:
+      chdir: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}
+      cmd: make oldconfig && make prepare && make scripts
+
+# VXLAN
+
+  - name: Backup and copy new Makefile in drivers/net
+    block:
+
+    - name: Copy original Makefile
+      ansible.builtin.copy:
+        src: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/drivers/net/Makefile
+        dest: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/drivers/net/Makefile.bak
+        remote_src: yes
+        force: no
+      ignore_errors: yes
+
+    - name: Copy over vxlan Makefile
+      ansible.builtin.copy:
+        src: vxlan-Makefile
+        dest: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/drivers/net/Makefile
+        force: yes
+
+  - name: Make module vxlan
+    block:
+
+      - name: Make the vxlan module
+        ansible.builtin.shell:
+          chdir: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/drivers/net
+          cmd: make -C /lib/modules/{{ linux_version.stdout }}/build M=$PWD
+        register: build_output
+
+      - name: Make output
+        ansible.builtin.debug:
+          msg: "{{ build_output.stdout_lines }}"      
+
+  - name: (Maybe) replace vxlan.ko
+    block:
+
+    - name: rmmod vxlan
+      ansible.builtin.shell:
+        cmd: rmmod vxlan
+      ignore_errors: yes
+
+    - name: create kernel/drivers/net directory
+      ansible.builtin.file:
+        path: /lib/modules/{{ linux_version.stdout }}/kernel/drivers/net
+        state: directory 
+
+    - name: Copy existing vxlan.ko
+      ansible.builtin.copy:
+        src: /lib/modules/{{ linux_version.stdout }}/kernel/drivers/net/vxlan.ko
+        dest: /lib/modules/{{ linux_version.stdout }}/kernel/drivers/net/vxlan-original.ko
+        remote_src: yes
+        force: no
+      ignore_errors: yes
+
+    - name: Copy across vxlan.ko
+      ansible.builtin.copy:
+        src: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/drivers/net/vxlan.ko
+        dest: /lib/modules/{{ linux_version.stdout }}/kernel/drivers/net/vxlan.ko
+        remote_src: yes
+        force: yes
+
+    - name: Run depmod
+      ansible.builtin.shell:
+        cmd: depmod
+
+    - name: modprobe vxlan
+      ansible.builtin.shell:
+        cmd: modprobe vxlan
+
+    - name: Set up vxlan to auto load
+      block:
+
+      - name: Check for vxlan line in /etc/modules
+        ansible.builtin.shell:
+          cmd: grep vxlan /etc/modules || echo "not present"
+        register: vxlan_grep_output
+
+      - name: Add vxlan to /etc/modules
+        when: vxlan_grep_output.stdout == "not present"
+        ansible.builtin.shell:
+          cmd: echo vxlan >> /etc/modules
+
+# BPF - Module doesn't work, cilium requires that the kernel is built with CONFIG_DEBUG_INFO_BTF=y
+
+  # - name: Set up sysfs_btf.c and Makefile in kernel/bpf
+  #   block:
+
+  #   - name: find MODULE_LICENSE in sysfs_btf.c
+  #     ansible.builtin.shell:
+  #       chdir: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/kernel/bpf 
+  #       cmd: grep MODULE_LICENSE sysfs_btf.c || echo "not present"
+  #     register: module_license_grep_output
+
+  #   - name: Backup original sysfs_btf.c
+  #     when: module_license_grep_output.stdout == "not present"
+  #     ansible.builtin.copy:
+  #       src: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/kernel/bpf/sysfs_btf.c
+  #       dest: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/kernel/bpf/sysfs_btf.c.bak
+  #       remote_src: yes
+  #       force: no
+  #     ignore_errors: yes
+
+  #   - name: append MODULE_LICENSE to end of sysfs_btf.c
+  #     when: module_license_grep_output.stdout == "not present"
+  #     ansible.builtin.shell:
+  #       chdir: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/kernel/bpf 
+  #       cmd: echo "MODULE_LICENSE(\"GPL\");" >> sysfs_btf.c
+
+  #   - name: Copy original Makefile
+  #     ansible.builtin.copy:
+  #       src: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/kernel/bpf/Makefile
+  #       dest: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/kernel/bpf/Makefile.bak
+  #       remote_src: yes
+  #       force: no
+  #     ignore_errors: yes
+
+  #   - name: Copy over bpf Makefile
+  #     ansible.builtin.copy:
+  #       src: bpf-Makefile
+  #       dest: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/kernel/bpf/Makefile
+  #       force: yes
+
+  # - name: Make module sysfs_btf
+  #   block:
+
+  #     - name: Make the sysfs_btf module
+  #       ansible.builtin.shell:
+  #         chdir: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/kernel/bpf
+  #         cmd: make -C /lib/modules/{{ linux_version.stdout }}/build M=$PWD
+  #       register: build_output
+
+  #     - name: Make output
+  #       ansible.builtin.debug:
+  #         msg: "{{ build_output.stdout_lines }}"      
+
+  # - name: (Maybe) replace sysfs_btf.ko
+  #   block:
+
+  #   - name: rmmod sysfs_btf
+  #     ansible.builtin.shell:
+  #       cmd: rmmod sysfs_btf
+  #     ignore_errors: yes
+
+  #   - name: create kernel/bpf directory
+  #     ansible.builtin.file:
+  #       path: /lib/modules/{{ linux_version.stdout }}/kernel/kernel/bpf/
+  #       state: directory 
+
+  #   - name: Copy existing sysfs_btf.ko
+  #     ansible.builtin.copy:
+  #       src: /lib/modules/{{ linux_version.stdout }}/kernel/kernel/bpf/sysfs_btf.ko
+  #       dest: /lib/modules/{{ linux_version.stdout }}/kernel/kernel/bpf/sysfs_btf-original.ko
+  #       remote_src: yes
+  #       force: no
+  #     ignore_errors: yes
+
+  #   - name: Copy across sysfs_btf.ko
+  #     ansible.builtin.copy:
+  #       src: /tmp/linux-sources/linux-source-{{ linux_semantic_version.stdout }}/kernel/bpf/sysfs_btf.ko
+  #       dest: /lib/modules/{{ linux_version.stdout }}/kernel/kernel/bpf/sysfs_btf.ko
+  #       remote_src: yes
+  #       force: yes
+
+  #   - name: Run depmod
+  #     ansible.builtin.shell:
+  #       cmd: depmod
+
+  #   - name: modprobe sysfs_btf
+  #     ansible.builtin.shell:
+  #       cmd: modprobe sysfs_btf
+
+  #   - name: Set up sysfs_btf to auto load
+  #     block:
+
+  #     - name: Check for sysfs_btf line in /etc/modules
+  #       ansible.builtin.shell:
+  #         cmd: grep sysfs_btf /etc/modules || echo "not present"
+  #       register: sysfs_btf_grep_output
+
+  #     - name: Add sysfs_btf to /etc/modules
+  #       when: sysfs_btf_grep_output.stdout == "not present"
+  #       ansible.builtin.shell:
+  #         cmd: echo sysfs_btf >> /etc/modules
+
+  - name: Delete linux source from tmp
+    when: remove_sources
+    ansible.builtin.file:
+      path: /tmp/linux-sources
+      state: absent
+
+  - name: Show vxlan or sysfs_btf lines in lsmod
+    block:
+
+      - name: Run lsmod | grep -E "vxlan|sysfs_btf"
+        ansible.builtin.shell:
+          cmd: lsmod | grep -E "vxlan|sysfs_btf" || echo "Nothing"
+        register: lsmod_output
+
+      - name: output lsmod output
+        ansible.builtin.debug:
+          msg: "{{ lsmod_output.stdout_lines }}"

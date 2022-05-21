@@ -13,3 +13,5 @@ scratch*/
 
 # Builds - recreate as required
 builds/
+# Kernels - recreate as required
+kernels/

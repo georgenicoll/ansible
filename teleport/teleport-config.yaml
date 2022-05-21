@@ -1,0 +1,19 @@
+version: v2
+teleport:
+  nodename: <node-name>
+  data_dir: /var/lib/teleport
+  auth_token: <auth-token>
+  auth_servers:
+  - <auth-server>
+  log:
+    output: stderr
+    severity: INFO
+    format:
+      output: text
+  ca_pin: <ca-pin>
+auth_service:
+  enabled: no
+ssh_service:
+  enabled: "yes"
+proxy_service:
+  enabled: "no"

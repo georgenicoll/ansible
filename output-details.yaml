@@ -1,0 +1,23 @@
+---
+- hosts: all
+  gather_facts: True
+  become: yes
+  
+  tasks:
+  - name: Get Linux Version
+    ansible.builtin.shell:
+      cmd: uname -a
+    register: linux_version
+
+  - name: Output Linux Version
+    ansible.builtin.debug:
+      msg: "{{ linux_version.stdout }}" 
+
+  - name: Get modules
+    ansible.builtin.shell:
+      cmd: lsmod | sort
+    register: modules_output
+
+  - name: Output modules
+    ansible.builtin.debug:
+      msg: "{{ modules_output.stdout_lines }}"

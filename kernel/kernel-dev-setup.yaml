@@ -1,0 +1,30 @@
+---
+- name: Set up for kernel development
+  hosts: all
+  become: yes
+  gather_facts: True
+
+  tasks:
+
+  # See https://kernelnewbies.org/OutreachyfirstpatchSetup
+  - name: Packages
+    ansible.builtin.apt:
+      pkg:
+      - vim
+      - libncurses5-dev
+      - gcc
+      - make
+      - git
+      - exuberant-ctags
+      - libssl-dev
+      - bison
+      - flex
+      - libelf-dev
+      - bc
+      - dwarves
+      - zstd
+      - git-email
+      # added after trying to compile bpf tools:  see https://docs.cilium.io/en/stable/bpf/
+      - libbinutils
+      - binutils-dev
+      state: present
