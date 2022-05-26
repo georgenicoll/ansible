@@ -1,0 +1,19 @@
+---
+- name: Remove docker and reboot
+  hosts: all
+  become: yes
+  gather_facts: False
+  
+  tasks:
+
+  - name: remove docker
+    ansible.builtin.apt:
+      pkg: 
+      - docker-ce
+      - docker-ce-cli
+      state: absent
+  
+  - name: Rebooting machine
+    reboot:
+      msg: "Rebooting after ansible updates"
+      pre_reboot_delay: 1    

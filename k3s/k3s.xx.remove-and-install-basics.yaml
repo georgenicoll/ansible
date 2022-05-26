@@ -1,0 +1,4 @@
+# These playbooks will first remove k3s and then reinstall the minimum k3s + cilium
+---
+- import_playbook: k3s.remove-k3s.yaml
+- import_playbook: k3s.01.install-k3s-and-cilium.yaml

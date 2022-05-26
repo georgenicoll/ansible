@@ -56,7 +56,7 @@
         kubeconfig: "{{ k3s_kubeconfig_location }}"
         name: cilium
         chart_ref: cilium/cilium
-        chart_version: 1.11.4
+        #chart_version: 1.11.4
         release_namespace: "{{ cilium_namespace }}"
         create_namespace: true
         values: '{{ cilium_info.get("status").get("values") | combine(hubble_values) }}'

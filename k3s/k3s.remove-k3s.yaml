@@ -17,7 +17,7 @@
       cmd: /usr/local/bin/k3s-agent-uninstall.sh
     ignore_errors: True
 
-  - name: Remove cni plugins
+  - name: Remove cni configs
     ansible.builtin.shell: 
       cmd: rm -fr /etc/cni/net.d
       warn: false
@@ -25,7 +25,7 @@
 
   - name: Remove cni binaries
     ansible.builtin.shell: 
-      cmd: rm -fr /etc/cni/bin
+      cmd: rm -fr /opt/cni/bin
       warn: false
     ignore_errors: True
 
@@ -39,4 +39,4 @@
     become: yes
     reboot:
       msg: "Rebooting after ansible updates"
-      pre_reboot_delay: 5
+      pre_reboot_delay: 1

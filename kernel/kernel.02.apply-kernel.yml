@@ -11,7 +11,7 @@
 
   tasks:
 
-  - name: run dpkg -i
+  - name: run dpkg -i linux-image
     ansible.builtin.shell:
       chdir: /tmp/kernels
       cmd: dpkg -i linux-image_arm64.deb
@@ -19,10 +19,37 @@
   - name: output from dpkg
     ansible.builtin.debug:
       msg: "{{ dpkg_output.stdout_lines }}"
+
+  - name: run dpkg -i linux-modules
+    ansible.builtin.shell:
+      chdir: /tmp/kernels
+      cmd: dpkg -i linux-modules_arm64.deb
+    register: dpkg_output
+  - name: output from dpkg
+    ansible.builtin.debug:
+      msg: "{{ dpkg_output.stdout_lines }}"
+
+  - name: run dpkg -i linux-modules-extra
+    ansible.builtin.shell:
+      chdir: /tmp/kernels
+      cmd: dpkg -i linux-modules-extra_arm64.deb
+    register: dpkg_output
+  - name: output from dpkg
+    ansible.builtin.debug:
+      msg: "{{ dpkg_output.stdout_lines }}"
+
+  - name: Run depmod
+    ansible.builtin.shell:
+      cmd: depmod
+    register: depmod_output
+  - name: output from depmod
+    ansible.builtin.debug:
+      msg: "{{ depmod_output.stdout_lines }}"
+
   - name: reboot
     reboot:
       msg: "Rebooting after ansible updates"
-      pre_reboot_delay: 10
+      pre_reboot_delay: 1
   - name: ls -la /sys/kernel/btf/vmlinux
     ansible.builtin.shell:
       cmd: ls -la /sys/kernel/btf/vmlinux
@@ -30,3 +57,10 @@
   - name: output from ls
     ansible.builtin.debug:
       msg: "{{ ls_output.stdout }}"
+  - name: lsmod | grep vxlan
+    ansible.builtin.shell:
+      cmd: lsmod | grep vxlan
+    register: lsmod_output
+  - name: output from lsmod
+    ansible.builtin.debug:
+      msg: "{{ lsmod_output.stdout }}"

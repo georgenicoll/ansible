@@ -38,5 +38,5 @@
 #  - name: Rebooting machine after delay
 #    reboot:
 #      msg: "Rebooting after updates"
-#      pre_reboot_delay: 5
+#      pre_reboot_delay: 1
 

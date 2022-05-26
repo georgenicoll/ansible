@@ -15,3 +15,5 @@ scratch*/
 builds/
 # Kernels - recreate as required
 kernels/
+# Helm - pull as required
+helm/

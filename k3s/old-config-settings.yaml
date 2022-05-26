@@ -1,0 +1,38 @@
+    shared_k3s_config: "--flannel-backend=none --no-flannel --disable-kube-proxy --disable-network-policy --disable servicelb --disable traefik --tls-san=10.0.0.101 --tls-san=kube --tls-san=kube.lan --write-kubeconfig-mode 0644"
+    #shared_k3s_config: "--flannel-backend=none --disable-network-policy --disable servicelb --disable traefik --write-kubeconfig-mode 0644"
+    #shared_k3s_config: "--flannel-backend=none --disable-network-policy --write-kubeconfig-mode 0644"
+    #network_k3s_config: ""
+    #network_k3s_config: "--service-cidr 172.17.0.0/16 --cluster-dns 172.17.0.10"
+    network_k3s_config: "--cluster-cidr 172.16.0.0/16 --service-cidr 172.17.0.0/16"
+    #network_k3s_config: "--cluster-cidr 172.16.0.0/16 --service-cidr 172.17.0.0/16 --cluster-dns 172.17.0.10"
+    k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml
+    kubeconfig_home_location: Dropbox/Kubernetes/kubeconfig-home-pis-k3s
+    kubeconfig_location: ~/Dropbox/Kubernetes/kubeconfig-home-pis-k3s
+    cilium_namespace: kube-system
+    cilium_archive: cilium-linux-arm64.tar.gz
+    cilium_archive_checksum: "{{ cilium_archive }}.sha256sum"
+    cilium_values:
+      kubeProxyReplacement: strict
+      k8sServiceHost: "10.0.0.14"
+      k8sServicePort: "6443"
+      hostPort:
+        enabled: true
+      bpf:
+        masquerade: true
+      ipMasqAgent:
+        enabled: true
+      #tunnel: disabled  #disable to not need vxlan
+      ipam:
+        mode: cluster-pool # default but explicitly defined anyway, let cilium handle ipam
+        operator:
+          clusterPoolIPv4PodCIDRList: ["172.16.0.0/16"] # replaces clusterPoolIPv4PodCIDR in cilium > 1.11
+          clusterPoolIPv4MaskSize: 24
+      extraArgs: ["--mtu", "1400"]
+      #extraArgs: [ "--mtu", "1400", "--enable-bpf-masquerade", "true" ]
+      #egressGateway:
+      #  enabled: true
+      #bgp:
+      #  enabled: true
+      #  announce:
+      #    loadbalancerIP: true
+      #    podCIDR: true
