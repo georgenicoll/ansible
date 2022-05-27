@@ -6,8 +6,11 @@
   become: yes
   gather_facts: True
   vars:
+    install_kube_vip: True
     install_cilium: True
-    shared_k3s_config: "--flannel-backend=none --no-flannel --disable-network-policy --disable servicelb --disable traefik --tls-san=10.0.0.101 --tls-san=kube --tls-san=kube.lan --write-kubeconfig-mode 0644"
+    kube_address: 10.0.0.101
+    kube_hostname: kube
+    shared_k3s_config: "--flannel-backend=none --no-flannel --disable-network-policy --disable servicelb --disable traefik --tls-san={{ kube_address }} --tls-san={{ kube_hostname }} --tls-san={{ kube_hostname }}.lan --write-kubeconfig-mode 0644"
     network_k3s_config: "--cluster-cidr 10.10.0.0/16 --service-cidr 10.20.0.0/16"
     k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml
     kubeconfig_home_location: Dropbox/Kubernetes/kubeconfig-home-pis-k3s
@@ -47,6 +50,22 @@
         state: present
         classic: yes
 
+    - name: kube-vip preparations
+      when: install_kube_vip and inventory_hostname in groups[ 'master_node' ]
+      block:
+      - name: make manifests directory
+        ansible.builtin.file:
+          path: /var/lib/rancher/k3s/server/manifests/
+          state: directory
+      - name: copy kube-vip rbac manifests
+        ansible.builtin.get_url:
+          url: https://kube-vip.io/manifests/rbac.yaml
+          dest: /var/lib/rancher/k3s/server/manifests/kube-vip-rbac.yaml
+      - name: copy kube-vip daemonset
+        ansible.builtin.copy:
+          src: kube-vip-daemonset.yaml
+          dest: /var/lib/rancher/k3s/server/manifests/kube-vip-daemonset.yaml
+
     - name: Download install script
       ansible.builtin.get_url:
         url: https://get.k3s.io
@@ -62,25 +81,28 @@
 
     - name: copy across kubeconfig
       when: inventory_hostname in groups[ 'master_node' ]
+      become: false
       block:
         - name: output kubeconfig
+          become: true
           ansible.builtin.shell:
             cmd: cat {{ k3s_kubeconfig_location }}
           register: kubeconfig_output
-
         - name: write kubeconfig to k3s kubeconfig file
           delegate_to: "localhost"
-          become: false
           ansible.builtin.shell:
             cmd: echo "{{ kubeconfig_output.stdout }}" > {{ kubeconfig_location }}
-
-        - name: replace 127.0.0.1 with master_node
+        - name: possibly set replacement_hostname
+          when: install_kube_vip
           delegate_to: "localhost"
-          become: false
+          ansible.builtin.shell: echo "{{ kube_hostname }}.lan"
+          register: replacement_hostname
+        - name: replace 127.0.0.1
+          delegate_to: "localhost"
           ansible.builtin.replace:
             path: "{{ kubeconfig_location }}"
             regexp: 127\.0\.0\.1
-            replace: "{{ groups[ 'master_node' ][0] }}"
+            replace: "{{ replacement_hostname.stdout | default(groups[ 'master_node' ][0]) }}"
 
     - name: add helm repo
       when: install_cilium and inventory_hostname in groups[ 'master_node' ]
@@ -89,11 +111,10 @@
         name: cilium
         repo_url: https://helm.cilium.io/
 
-    - name: apply configurations
+    - name: apply cilium configurations
       when: install_cilium and inventory_hostname in groups[ 'master_node' ]
       delegate_to: "localhost"
       become: false
-
       block:
         - name: get logged in user
           ansible.builtin.shell:
@@ -109,6 +130,10 @@
         - name: apply ip-masq-agent configuration
           ansible.builtin.shell:
             cmd: kubectl --kubeconfig=/home/{{ logged_in_user.stdout }}/{{ kubeconfig_home_location }} create configmap ip-masq-agent --from-file config=ip-masq-agent-config -n {{ cilium_namespace }}
+          register: masq_agent_status
+          retries: 20
+          delay: 20 #seconds
+          until: masq_agent_status.status is defined
 
     - name: install cilium using helm
       when: install_cilium and inventory_hostname in groups[ 'master_node' ]
@@ -148,18 +173,15 @@
             url: https://github.com/cilium/cilium-cli/releases/latest/download/{{ cilium_archive_checksum }}
             dest: /tmp/{{ cilium_archive_checksum }}
             mode: u+r
-
         - name: download cilium archive
           ansible.builtin.get_url:
             url: https://github.com/cilium/cilium-cli/releases/latest/download/{{ cilium_archive }}
             dest: /tmp/{{ cilium_archive }}
             mode: u+rx
-
         - name: check cilium checksum
           ansible.builtin.shell:
             chdir: /tmp
             cmd: sha256sum --check {{ cilium_archive_checksum }}
-
         - name: unpack cilium archive
           ansible.builtin.unarchive:
             src: /tmp/{{ cilium_archive }}

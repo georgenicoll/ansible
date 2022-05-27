@@ -9,11 +9,11 @@
 #     - add metallb and expose dashboard and metrics server to the local network using it
 #     - add longorn and expose the loghorn-ui to the local network using metallb
 ---
-#- import_playbook: k3s.remove-k3s.yaml
+- import_playbook: k3s.remove-k3s.yaml
 - import_playbook: k3s.01.install-k3s-and-cilium.yaml
 - import_playbook: k3s.02.install-hubble.yaml
 - import_playbook: k3s.03.dashboard-install.yaml
 - import_playbook: k3s.04.metallb-install.yaml
 - import_playbook: k3s.05.longhorn-install.yaml
-- import_playbook: k3s.06.nats-install.yaml
-- import_playbook: k3s.07.install-crossplane.yaml
+#- import_playbook: k3s.06.nats-install.yaml
+#- import_playbook: k3s.07.install-crossplane.yaml
