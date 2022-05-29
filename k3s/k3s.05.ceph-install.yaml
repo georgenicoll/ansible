@@ -1,0 +1,10 @@
+- name: Install Ceph
+  hosts: all
+  become: yes
+  gather_facts: True
+  vars:
+    environment_check_script: environment_check.sh
+    k3s_kubeconfig_location: /etc/rancher/k3s/k3s.yaml
+
+  tasks:
+  # Need block devices for this.

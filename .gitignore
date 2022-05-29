@@ -17,3 +17,5 @@ builds/
 kernels/
 # Helm - pull as required
 helm/
+# teleport
+teleport/cluster-values.yaml
