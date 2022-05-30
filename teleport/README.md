@@ -1,6 +1,21 @@
-# Installing Teleport into a k8 cluster running on arm64
+# Teleport Scripts
 
-## Build arm64 image
+## Setup teleport on all rPIs
+
+Run the following to install teleport and set it up to connect to the teleport server on each nodes.  NOTE: before running, login to teleport using `tsh login`:
+
+```
+ansible-playbook teleport.node.setup.yaml
+```
+
+to remove, run `teleport.node.uninstall.yaml`.
+
+## Installing Teleport into a k8 cluster running on arm64
+
+At the time of writing (May 2022) there is no arm64 image of teleport.  The following instructions will build one, push to a remote repo 
+and run the helm install command to use that built image.  Substitute the image `georgenicoll/teleport` as required.
+
+### Build arm64 image
 
 1. clone https://github.com/gravitational/teleport to an rPi
 1. checkout the version required: `git checkout v${VERSION}`
@@ -31,13 +46,13 @@
         docker push georgenicoll/teleport:latest
         ```
 
-## Set up teleport in the cluster
+### Set up teleport in the cluster
 
 1. From the teleport UI, go to Kubernetes->Add Kubernetes
 1. Run the command to add the helm repo, if necessary
 1. Fill in the `Namespace` and `Cluster Name`
 1. Click on the `Generate Script`
-1. Copy the generated file locally (following assumes to `cluster-values.yaml`)
+1. Copy the generated file locally (the following assumes `cluster-values.yaml`)
 1. Append the following to the `cluster-values.yaml`:
     ```
     image: georgenicoll/teleport
@@ -46,4 +61,18 @@
     ```
     helm install teleport-agent teleport/teleport-kube-agent -f cluster-values.yaml --create-namespace --namespace teleport
     ```
+### Set up the access role with the correct kubernetes_groups
+
+For some reason when first set up, anything I tried with kubectl was giving me an error much like the following:
+```
+error: the server doesn't have a resource type "pods"
+```
+To get around this, the teleport access role needed the additional group `system:masters` added to it (from the [teleport kubernetes demo](https://youtu.be/2diX_UAmJ1c)):
+
+1. In the Web UI navigate to `Team -> Roles`
+1. Click on `Options -> Edit` next to the `access` group
+1. Add the group `system:masters` to the `kubernetes_groups` section
+1. Log back in using `tsh kube login <clustername>`
+
+This should all now work.
 
