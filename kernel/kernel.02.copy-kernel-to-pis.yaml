@@ -1,0 +1,28 @@
+# This playbook will copy an already built module to the rPIs - note: it expects the same version to be present on
+# the PIs as was just built.
+---
+- name: Copy kernel files to remotes
+  hosts: all
+  become: False
+  gather_facts: True
+
+  tasks:
+
+  - include: kernel.x1.get-kernel-versions-etc.yaml
+  - include: kernel.x2.setup-post-source-variables.yaml
+
+  - name: copy files to remotes
+    block:
+    - name: make remote directory
+      ansible.builtin.file:
+        path: /tmp/kernels
+        state: directory
+    - name: copy image (if this fails - did you run kernel.01... and the build ?)
+      ansible.builtin.copy:
+        src: "{{ build_root.stdout }}/{{ item.local }}"
+        dest: "/tmp/kernels/{{ item.remote }}"
+        force: True
+      loop:
+      - { local: 'linux-image-{{ kernel_version.stdout }}_{{ new_version.stdout }}_arm64.deb', remote: 'linux-image_arm64.deb' }
+      - { local: 'linux-modules-{{ kernel_version.stdout }}_{{ new_version.stdout }}_arm64.deb', remote: 'linux-modules_arm64.deb' }
+      - { local: 'linux-modules-extra-{{ kernel_version.stdout }}_{{ new_version.stdout }}_arm64.deb', remote: 'linux-modules-extra_arm64.deb' }

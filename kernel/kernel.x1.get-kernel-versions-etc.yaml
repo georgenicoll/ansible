@@ -1,0 +1,42 @@
+# Set up variables for the kernel
+- name: versions
+  block:
+  - name: Get kernel version
+    ansible.builtin.shell:
+      cmd: uname -r
+    register: kernel_version
+  - name: Output kernel version
+    ansible.builtin.debug:
+      msg: "Kernel Version: {{ kernel_version.stdout }}"
+  - name: Generate base version
+    ansible.builtin.shell:
+      cmd: "echo \"{{ kernel_version.stdout }}\" | awk -F '\\\\.|-' '{ print $1\".\"$2\".\"$3 }'"
+    register: base_version
+  - name: Output base version
+    ansible.builtin.debug:
+      msg: "Base Version: {{ base_version.stdout }}"
+
+- name: set up local directories
+  delegate_to: localhost
+  block:
+  - name: Get local root directory
+    ansible.builtin.shell:
+      cmd: echo /home/$USER/linux
+    register: build_root
+  - name: Output local root directory
+    ansible.builtin.debug:
+      msg: "Build root: {{ build_root.stdout }}"
+  - name: Get search version
+    ansible.builtin.shell:
+      cmd: "echo \"{{ kernel_version.stdout }}\" | awk -F '\\\\.|-' '{ print $1\".\"$2\".\"$3\"-\"$4 }'"
+    register: search_version
+  - name: Output search version
+    ansible.builtin.debug:
+      msg: "Search Version: {{ search_version.stdout }}"
+  - name: Generate linux source directory
+    ansible.builtin.shell:
+      cmd: echo "{{ build_root.stdout }}/linux-raspi-{{ base_version.stdout }}"
+    register: source_dir
+  - name: Output linux source directory
+    ansible.builtin.debug:
+      msg: "Source Directory: {{ source_dir.stdout }}"

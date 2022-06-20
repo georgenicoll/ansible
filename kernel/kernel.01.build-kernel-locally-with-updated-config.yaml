@@ -1,0 +1,95 @@
+# This playbook will build a new kernel using the existing configuration + the following:
+# - vxlan as a module
+# - sysfs_btf in kernel
+#
+# vxlan requires the udp_tunnel and ip6_udp_tunnel modules to be available.
+#
+# Prior to Running this ensure that deb-srcs are available on localhost
+#   Uncomment deb-src entries: - see instructions at https://forums.raspberrypi.com/viewtopic.php?f=131&t=284556&p=1734458#p1734458
+#   For example, Add following lines to /etc/apt/sources.list for jammy release
+#   | deb-src http://ports.ubuntu.com/ubuntu-ports jammy main restricted
+#   | deb-src http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted
+#
+---
+- name: Build kernel with vxlan and sysfs_btf
+  hosts: all
+  become: False
+  gather_facts: True
+
+  tasks:
+
+  - include: kernel.x1.get-kernel-versions-etc.yaml
+
+  - name: local preparation
+    when: inventory_hostname in groups[ 'master_node' ]
+    delegate_to: localhost
+    block:
+    - name: Ensure local root directory
+      ansible.builtin.file:
+        path: "{{ build_root.stdout }}"
+        state: directory
+    - name: Clean up any previous source 
+      ansible.builtin.file:
+        path: "{{ source_dir.stdout }}"
+        state: absent
+    - name: Ensure build dependencies
+      become: True
+      ansible.builtin.apt:
+        update_cache: True
+        state: present
+        pkg:
+        - gcc-aarch64-linux-gnu
+        - flex
+        - bison
+        - libssl-dev
+        - libelf-dev
+        - fakeroot
+        - pahole
+        - libncurses-dev
+
+  - name: get source on localhost
+    when: inventory_hostname in groups[ 'master_node' ]
+    delegate_to: localhost
+    block:
+    - name: Get source
+      ansible.builtin.shell:
+        chdir: "{{ build_root.stdout }}"
+        cmd: apt source linux-image-{{ kernel_version.stdout }}
+
+  - include: kernel.x2.setup-post-source-variables.yaml
+
+  - name: get ready to build on localhost
+    when: inventory_hostname in groups[ 'master_node' ]
+    delegate_to: localhost
+    block:
+    - name: update config settings
+      ansible.builtin.shell:
+        chdir: "{{ source_dir.stdout }}"
+        cmd: "scripts/config --file debian.raspi/config/config.common.ubuntu {{ item.change }} {{ item.config }}"
+      loop:
+      - { change: '--enable', config: 'DEBUG_INFO_BTF' } 
+      - { change: '--module', config: 'VXLAN' } 
+      - { change: '--disable', config: 'DEBUG_INFO_DWARF4' } 
+      - { change: '--disable', config: 'DEBUG_INFO_DWARF5' } 
+      - { change: '--enable', config: 'DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT' }
+    - name: Patch up changelog (add suffix)
+      block:
+      - name: replace version with new version in debian.raspi/changelog
+        ansible.builtin.replace:
+          path: "{{ source_dir.stdout }}/debian.raspi/changelog"
+          regexp: 'linux-raspi \({{ specific_version.stdout }}\) '
+          replace: 'linux-raspi ({{ new_version.stdout }}) '
+    - name: generate instructions
+      ansible.builtin.shell:
+        cmd: |- 
+          echo "# Now Run the following in {{ source_dir.stdout }}
+          export ARCH=arm64
+          export \$(dpkg-architecture -aarm64)
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          fakeroot debian/rules clean
+          debian/rules build
+          fakeroot debian/rules binary"
+      register: instructions
+    - name: instructions
+      ansible.builtin.debug:
+        var: instructions.stdout_lines

@@ -1,0 +1,20 @@
+# Post source retrieval variable setup
+- name: get specific versions post source retrieval
+  delegate_to: localhost
+  become: False
+  block:
+  - name: Get specific version
+    ansible.builtin.shell:
+      chdir: "{{ source_dir.stdout }}"
+      cmd: cat debian.raspi/changelog | grep -oP '\({{ search_version.stdout }}.*\)' | sed 's/(//g' | sed 's/[+btf]*)//g'
+    register: specific_version
+  - name: Output specific version
+    ansible.builtin.debug:
+      msg: "Specific Version: {{ specific_version.stdout }}"
+  - name: Generate new version
+    ansible.builtin.shell:
+      cmd: 'echo "{{ specific_version.stdout }}+btf"'
+    register: new_version
+  - name: Output new version
+    ansible.builtin.debug:
+      msg: "New Version: {{ new_version.stdout }}"

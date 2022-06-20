@@ -56,11 +56,11 @@
     register: ls_output
   - name: output from ls
     ansible.builtin.debug:
-      msg: "{{ ls_output.stdout }}"
+      var: "ls_output.stdout_lines"
   - name: lsmod | grep vxlan
     ansible.builtin.shell:
       cmd: lsmod | grep vxlan
     register: lsmod_output
   - name: output from lsmod
     ansible.builtin.debug:
-      msg: "{{ lsmod_output.stdout }}"
+      var: "lsmod_output.stdout_lines"

@@ -19,3 +19,5 @@ kernels/
 helm/
 # teleport
 teleport/cluster-values.yaml
+# cilium tutorials
+cilium-tutorial/

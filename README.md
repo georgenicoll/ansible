@@ -28,6 +28,13 @@
       * Reset the kubernetes installation
   1. ``k8/remove-k8-standard.yaml`` :
       * Remove the installation (from ubuntu)
+- kernel (see [README.md in the directory](kernel/README.md) for further info)
+  1. ``kernel/kernel-dev-setup.yaml`` :
+      * Set up (ubuntu) kernel development/build dependencies
+  1. ``kernel/kernel.01.build-kernel-locally-with-updated-config.yaml`` :
+      * Use to build the arm64 kernel locally, along with vxlan and btf requirements
+  1. ``kernel/kernel.02.apply-kernel.yaml`` :
+      * Apply the kernel built in the above playbook
 
 
 # Run a playbook against all of the rpis
